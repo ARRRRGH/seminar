@@ -581,13 +581,22 @@ class _TimeRasterReader(_RasterReader):
 
 
 class SeminarReader(_TimeRasterReader):
+    def __init__(self, time_pattern, incl_pattern='.*', *args, **kwargs):
+        self.time_pattern = time_pattern
+        self.incl_pattern = incl_pattern
+        _TimeRasterReader.__init__(self, *args, **kwargs)
+
     def _create_path_dict(self):
         fnames = glob.glob(os.path.join(self.path, '*.tif'))
-        pattern = r'([0-9]+)_*\.tif'
+        
+        acc = []
+        for f in fnames:
+            if len(re.findall(self.incl_pattern, f)) != 0:
+                acc.append(f)
 
         path_dict = {}
-        for fname in fnames:
-            date = re.findall(pattern, fname)[-1]
+        for i, fname in enumerate(acc):
+            date = re.findall(self.time_pattern, fname)[-1]
             year = int(date[:4])
             month = int(date[4:6])
             day = int(date[6:8])
