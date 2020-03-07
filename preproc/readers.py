@@ -224,6 +224,7 @@ class _RasterReader(_Reader):
 
         return ret, bbox
 
+
 class ICESATReader(_Reader):
     atl06 = {'lat': '/land_ice_segments/latitude',
              'lon': '/land_ice_segments/longitude',
@@ -578,6 +579,21 @@ class _TimeRasterReader(_RasterReader):
     def _create_path_dict(self):
         pass
 
+
+class SeminarReader(_TimeRasterReader):
+    def _create_path_dict(self):
+        fnames = glob.glob(os.path.join(self.path, '*.tif'))
+        pattern = r'([0-9]+)_*\.tif'
+
+        path_dict = {}
+        for fname in fnames:
+            date = re.findall(pattern, fname)[-1]
+            year = int(date[:4])
+            month = int(date[4:6])
+            day = int(date[6:8])
+            path_dict[os.path.join(self.path, fname)] = dt.datetime(year=year, month=month, day=day)
+
+        return path_dict
 
 class SnowCoverReader(_TimeRasterReader):
     def _create_path_dict(self):
