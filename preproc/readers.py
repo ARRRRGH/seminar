@@ -8,7 +8,7 @@ Created on Wed Jul  3 22:32:26 2019
 import pandas as pd
 import geopandas as gpd
 import os
-import h5py
+# import h5py
 import rasterio as rio
 from shapely.geometry import Point, GeometryCollection
 from astropy.time import Time
@@ -29,7 +29,9 @@ from rasterio.vrt import WarpedVRT
 
 from fiona.crs import from_epsg
 
-from tqdm import tqdm
+#from tqdm import tqdm
+tqdm = lambda x: x
+
 from shapely import wkt
 import pickle as pkl
 
@@ -51,7 +53,8 @@ def rasterio_to_xarray(arr, meta, tmp_dir='.', fil_name=None, chunks=None, out=F
 
 
 def clean_raster_xarray(ret):
-    ret = ret.squeeze('band', drop=True)
+    if len(ret.band) == 1:
+        ret = ret.squeeze('band', drop=True)
     ret = ret.where(ret != ret.attrs['nodatavals'][0])
     ret.attrs['nodatavals'] = np.nan
     return ret
@@ -86,7 +89,7 @@ class _RasterReader(_Reader):
     def __init__(self, path, bbox=None, time=None, *args, **kwargs):
         _Reader.__init__(self, path, bbox=bbox, time=time)
 
-    def read(self, paths=None, bbox=None, align=True, epsg=4326, chunks=None, fil_names=None,
+    def read(self, paths=None, bbox=None, align=False, epsg=4326, chunks=None, fil_names=None,
              out=False, *args, **kwargs):
         """
         :param paths:
@@ -309,7 +312,7 @@ class ICESATReader(_Reader):
 
         Returns
         -------
-            df (GeoPandas.DataFrame) : GeoPandas.DataFrame with correct crs
+            _df (GeoPandas.DataFrame) : GeoPandas.DataFrame with correct crs
         """
         tracks = ['gt1l', 'gt1r', 'gt2l', 'gt2r', 'gt3l', 'gt3r']
         df = pd.DataFrame()

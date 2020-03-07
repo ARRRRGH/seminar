@@ -6,9 +6,9 @@ import pandas as pd
 import geopandas as gpd
 import re
 from shapely.geometry import Point
-from sklearn.cluster import DBSCAN
+#from sklearn.cluster import DBSCAN
 
-import rasterstats as rstats
+#import rasterstats as rstats
 from fiona.crs import from_epsg
 
 from joblib import Parallel, delayed
