@@ -76,7 +76,7 @@ class _Reader(object):
             time = self.time
         return time
 
-    def query(self, time=None, bbox=None, n_jobs=2, epsg=None, *args, **kwargs):
+    def query(self, time=None, bbox=None, n_jobs=2, crs=None, *args, **kwargs):
         pass
 
 
@@ -89,7 +89,7 @@ class _RasterReader(_Reader):
     def __init__(self, path, bbox=None, time=None, *args, **kwargs):
         _Reader.__init__(self, path, bbox=bbox, time=time)
 
-    def read(self, paths=None, bbox=None, align=False, epsg=4326, chunks=None, fil_names=None,
+    def read(self, paths=None, bbox=None, align=False, crs=None, chunks=None, fil_names=None,
              out=False, *args, **kwargs):
         """
         :param paths:
@@ -119,18 +119,22 @@ class _RasterReader(_Reader):
                     fil_name = fil_names[i]
 
                 # crop tif and save to tmp file
-                _, tmp_path = _RasterReader._crop_tif(path, bbox=bbox, chunks=chunks, out=True, *args, **kwargs)
+                _, tmp_path, fil_crs = _RasterReader._crop_tif(path, bbox=bbox, chunks=chunks, out=True, *args, **kwargs)
+
+                crs = crs if crs is not None else fil_crs
 
                 # warp image
-                ret, tmp_path2 = _RasterReader._warp_tif(tmp_path, bbox=bbox, epsg=epsg, chunks=chunks,
-                                                         fil_name=fil_name,
-                                                         out=out, *args, **kwargs)
+                if crs != fil_crs:
+                    ret, tmp_path2 = _RasterReader._warp_tif(tmp_path, bbox=bbox, crs=crs, chunks=chunks,
+                                                             fil_name=fil_name, out=out, *args, **kwargs)
 
-                if os.path.exists(tmp_path):
-                    os.remove(tmp_path)
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+
+                    tmp_path = tmp_path2
 
                 ret.attrs['crs'] = dict(rio.crs.CRS.from_string(ret.crs))
-                ret.attrs['path'] = tmp_path2
+                ret.attrs['path'] = tmp_path
 
                 out_xarrs.append(ret)
                 out_bboxs.append(bbox)
@@ -164,6 +168,7 @@ class _RasterReader(_Reader):
             coords = bbox.get_rasterio_coords(fil.crs.data)
             out_img, out_transform = mask(dataset=fil, shapes=coords, crop=True)
             out_meta = fil.meta.copy()
+            crs = fil.crs
 
             out_meta.update({"driver": "GTiff",
                              "height": out_img.shape[1],
@@ -175,12 +180,12 @@ class _RasterReader(_Reader):
         out, tmp_path = rasterio_to_xarray(out_img, out_meta, tmp_dir=tmp_dir,
                                            fil_name=fil_name, *args, **kwargs)
 
-        return out, tmp_path
+        return out, tmp_path, crs
 
     @staticmethod
-    def _warp_tif(path, bbox, epsg, tmp_dir='.', fil_name=None, resampling_method='cubic', *args, **kwargs):
-        left, bottom, right, top = bbox.get_bounds(epsg=epsg)
-        res = bbox.get_resolution(epsg)
+    def _warp_tif(path, bbox, crs, tmp_dir='.', fil_name=None, resampling_method='cubic', *args, **kwargs):
+        left, bottom, right, top = bbox.get_bounds(crs=crs)
+        res = bbox.get_resolution(crs)
 
         width = (right - left) // res[0]
         height = (top - bottom) // res[1]
@@ -188,7 +193,7 @@ class _RasterReader(_Reader):
 
         vrt_options = {
             'resampling': Resampling[resampling_method],
-            'crs': CRS.from_epsg(epsg),
+            'crs': crs,
             'transform': dst_transform,
             'height': height,
             'width': width,
@@ -215,12 +220,12 @@ class _RasterReader(_Reader):
         return xarr, tmp_path
 
     def query(self, time=None, bbox=None, n_jobs=2, epsg=None, align=False, *args, **kwargs):
-        ret, bbox = self.read(time=time, bbox=bbox, n_jobs=n_jobs, epsg=epsg, align=align, *args, **kwargs)
+        ret, bbox = self.read(time=time, bbox=bbox, n_jobs=n_jobs, epsg=crs, align=align, *args, **kwargs)
 
-        # if epsg is set, change coordinates
+        # if crs is set, change coordinates
         # fixme: incorrect transformation ?
-        # if epsg is not None and not align:
-        #     ret = [hp.xarray_to_epsg(r, epsg) for r in ret]
+        # if crs is not None and not align:
+        #     ret = [hp.xarray_to_crs(r, crs) for r in ret]
 
         return ret, bbox
 
@@ -238,9 +243,9 @@ class _TimeRasterReader(_RasterReader):
         self.min_time = min(self._path_dict.values())
         self.max_time = max(self._path_dict.values())
 
-    def query(self, bbox=None, time=None, align=False, epsg=None, *args, **kwargs):
+    def query(self, bbox=None, time=None, align=False, crs=None, *args, **kwargs):
         paths, times = self._prepare_query(time=time)
-        arrs, bboxs = self.read(paths, bbox=bbox, align=align, epsg=epsg, *args, **kwargs)
+        arrs, bboxs = self.read(paths, bbox=bbox, align=align, crs=crs, *args, **kwargs)
 
         ret = xr.concat(arrs, 'time')
         ret.coords['time'] = ('time', np.array(times))
@@ -265,7 +270,7 @@ class _TimeRasterReader(_RasterReader):
             pathes_times = list((path, time) for path, time in self._path_dict.items() if start <= time <= end)
 
         if len(pathes_times) == 0:
-            return None, [bbox]
+            return None, None
 
         paths, times = zip(*pathes_times)
         return paths, times
