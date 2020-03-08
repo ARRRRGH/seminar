@@ -90,7 +90,7 @@ class _RasterReader(_Reader):
         _Reader.__init__(self, path, bbox=bbox, time=time)
 
     def read(self, paths=None, bbox=None, align=False, crs=None, chunks=None, fil_names=None,
-             out=False, *args, **kwargs):
+             out=False, out_dir='~', *args, **kwargs):
         """
         :param paths:
         :param bbox:
@@ -114,17 +114,24 @@ class _RasterReader(_Reader):
                 bbox = bs.BBox.from_tif(paths[0])
             for i, path in tqdm(enumerate(paths)):
                 if fil_names is None:
-                    fil_name = os.path.basename(path)
+                    basename = os.path.dirname(path)
+                    new_dir = os.path.join(out_dir, 'query_out')
+                    os.makedirs(new_dir, exist_ok=True)
+                    fil_name, ext = os.path.splitext(os.path.basename(path))
+                    #print(new_dir, fil_name, ext)
+                    fil_name = os.path.join(new_dir, fil_name + '_cropped' + ext)
                 else:
                     fil_name = fil_names[i]
 
                 # crop tif and save to tmp file
-                _, tmp_path, fil_crs = _RasterReader._crop_tif(path, bbox=bbox, chunks=chunks, out=True, *args, **kwargs)
+                ret, tmp_path, fil_crs = _RasterReader._crop_tif(path, bbox=bbox, chunks=chunks, out=True, fil_name=fil_name, *args, **kwargs)
 
                 crs = crs if crs is not None else fil_crs
 
                 # warp image
                 if crs != fil_crs:
+                    fil, ext = os.path.splitext(os.path.basename(fil_name))
+                    fil_name = os.path.join(os.path.dirname(fil_name), fil + '_warped' + ext)
                     ret, tmp_path2 = _RasterReader._warp_tif(tmp_path, bbox=bbox, crs=crs, chunks=chunks,
                                                              fil_name=fil_name, out=out, *args, **kwargs)
 
@@ -135,6 +142,12 @@ class _RasterReader(_Reader):
 
                 ret.attrs['crs'] = dict(rio.crs.CRS.from_string(ret.crs))
                 ret.attrs['path'] = tmp_path
+                
+                if not out:
+                    try:
+                        os.remove(tmp_path)
+                    except:
+                        pass
 
                 out_xarrs.append(ret)
                 out_bboxs.append(bbox)
