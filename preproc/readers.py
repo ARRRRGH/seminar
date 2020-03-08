@@ -109,19 +109,18 @@ class _RasterReader(_Reader):
         out_xarrs = []
         out_bboxs = []
 
-        if align or bbox is not None:
-            if bbox is None:
-                bbox = bs.BBox.from_tif(paths[0])
+        # take bbox of first image if align but no bbox supplied
+        if align and bbox is None:
+            bbox = bs.BBox.from_tif(paths[0])
+
+        if bbox is not None:
             for i, path in tqdm(enumerate(paths)):
-                if fil_names is None:
-                    basename = os.path.dirname(path)
-                    new_dir = os.path.join(out_dir, 'query_out')
-                    os.makedirs(new_dir, exist_ok=True)
-                    fil_name, ext = os.path.splitext(os.path.basename(path))
-                    #print(new_dir, fil_name, ext)
-                    fil_name = os.path.join(new_dir, fil_name + '_cropped' + ext)
-                else:
-                    fil_name = fil_names[i]
+
+                # path arithmetic
+                new_dir = os.path.join(out_dir, 'query_out')
+                os.makedirs(new_dir, exist_ok=True)
+                fil_name, ext = os.path.splitext(os.path.basename(path))
+                fil_name = os.path.join(new_dir, fil_name + '_cropped' + ext)
 
                 # crop tif and save to tmp file
                 ret, tmp_path, fil_crs = _RasterReader._crop_tif(path, bbox=bbox, chunks=chunks, out=True, fil_name=fil_name, *args, **kwargs)
@@ -130,8 +129,11 @@ class _RasterReader(_Reader):
 
                 # warp image
                 if crs != fil_crs:
+
+                    # path arithmetic
                     fil, ext = os.path.splitext(os.path.basename(fil_name))
                     fil_name = os.path.join(os.path.dirname(fil_name), fil + '_warped' + ext)
+
                     ret, tmp_path2 = _RasterReader._warp_tif(tmp_path, bbox=bbox, crs=crs, chunks=chunks,
                                                              fil_name=fil_name, out=out, *args, **kwargs)
 
@@ -146,13 +148,7 @@ class _RasterReader(_Reader):
                 if not out:
                     try:
                         os.remove(tmp_path)
-                    except:
-                        pass
-
-                if not out:
-                    try:
-                        os.remove(tmp_path)
-                    except:
+                    except FileNotFoundError:
                         pass
 
                 out_xarrs.append(ret)
@@ -160,12 +156,6 @@ class _RasterReader(_Reader):
 
         else:
             for path in tqdm(paths):
-                # fil_name = os.path.basename(path)
-                # if bbox is not None:
-                #     ret, path = _RasterReader._crop_tif(path, bbox=bbox, chunks=chunks, fil_name=fil_name,
-                #                                      out=out, *args, **kwargs)
-                #     out_bbox = bbox
-                # else:
                 with rio.open(path, 'r') as fil:
                     ret = xr.open_rasterio(fil, chunks=chunks)
                     ret = clean_raster_xarray(ret)
