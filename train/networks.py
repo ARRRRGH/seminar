@@ -308,20 +308,3 @@ class SSSP(ptl.LightningModule):
         return DataLoader(CoupledDataset(self.val_datasets, epoch_spec=self.epoch_spec,
                                          samex=self.samex, samey=self.samey),
                           batch_size=self.batch_size, collate_fn=CoupledDataset.collate)
-
-    # @ptl.data_loader
-    # def test_dataloader(self):
-    #     return DataLoader(CoupledDataset(self.tst_datasets, epoch_spec=self.epoch_spec, samex=self.samex, samey=self.samey),
-    #                       batch_size=self.batch_size)
-
-    # def on_epoch_end(self):
-    #     z = torch.randn(8, self.hparams.latent_dim)
-    #     # match gpu device (or keep as cpu)
-    #     if self.on_gpu:
-    #         z = z.cuda(self.last_imgs.device.index)
-    #
-    #     # log sampled images
-    #     sample_imgs = self.forward(z)
-    #     grid = torchvision.utils.make_grid(sample_imgs)
-    #     self.logger.experiment.add_image(f'generated_images', grid, self.current_epoch)
-

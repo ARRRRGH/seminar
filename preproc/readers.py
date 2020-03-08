@@ -149,6 +149,12 @@ class _RasterReader(_Reader):
                     except:
                         pass
 
+                if not out:
+                    try:
+                        os.remove(tmp_path)
+                    except:
+                        pass
+
                 out_xarrs.append(ret)
                 out_bboxs.append(bbox)
 
@@ -232,8 +238,8 @@ class _RasterReader(_Reader):
 
         return xarr, tmp_path
 
-    def query(self, time=None, bbox=None, n_jobs=2, epsg=None, align=False, *args, **kwargs):
-        ret, bbox = self.read(time=time, bbox=bbox, n_jobs=n_jobs, epsg=crs, align=align, *args, **kwargs)
+    def query(self, time=None, bbox=None, n_jobs=2, crs=None, align=False, *args, **kwargs):
+        ret, bbox = self.read(time=time, bbox=bbox, n_jobs=n_jobs, crs=None, align=align, *args, **kwargs)
 
         # if crs is set, change coordinates
         # fixme: incorrect transformation ?
