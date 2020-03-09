@@ -313,6 +313,5 @@ class SeminarReader(_TimeRasterReader):
         return path_dict
 
 
-
 def read_raster(path, bbox=None, *args, **kwargs):
     return _RasterReader(path, bbox).query(*args, **kwargs)
