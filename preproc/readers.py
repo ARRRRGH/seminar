@@ -55,8 +55,8 @@ def rasterio_to_xarray(arr, meta, tmp_dir='.', fil_name=None, chunks=None, out=F
 def clean_raster_xarray(ret):
     if len(ret.band) == 1:
         ret = ret.squeeze('band', drop=True)
-    ret = ret.where(ret != ret.attrs['nodatavals'][0])
-    ret.attrs['nodatavals'] = np.nan
+    # ret = ret.where(ret != ret.attrs['nodatavals'][0])
+    # ret.attrs['nodatavals'] = np.nan
     return ret
 
 
@@ -173,6 +173,7 @@ class _RasterReader(_Reader):
 
     @staticmethod
     def _crop_tif(path, bbox, tmp_dir='.', fil_name=None, *args, **kwargs):
+        print(path)
         with rio.open(path) as fil:
             coords = bbox.get_rasterio_coords(fil.crs.data)
             out_img, out_transform = mask(dataset=fil, shapes=coords, crop=True)
