@@ -1,6 +1,10 @@
 import sklearn as skl
 import numpy as np
 import matplotlib.pyplot as plt
+import sklearn.cluster as cl
+
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.colors import SymLogNorm
 
 
 class ConstantShiftEmbedding(skl.base.BaseEstimator, skl.base.TransformerMixin):
@@ -24,11 +28,12 @@ class ConstantShiftEmbedding(skl.base.BaseEstimator, skl.base.TransformerMixin):
         # Add/change parameters, if necessary.
 
     def _center_matrix(self, arr):
+        # TODO:  it's much faster to centralize subtracting from each row and column the respective mean, instead of
+        # perfomring two matrix multiplications
         one = np.eye(len(arr))
         Q = one - 1 / len(arr)
         return np.linalg.multi_dot([Q, arr, Q])
-    ##it'm much faster to centralize subtracting from each row and column the respective mean, instead of
-    ##perfomring two matrix multiplications
+
 
     def plot_S_spectrum(self, plot_expl_var=False, values=False):
         fig, ax1 = plt.subplots()
