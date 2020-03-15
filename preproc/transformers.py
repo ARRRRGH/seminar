@@ -4,7 +4,8 @@ import itertools
 from scipy import signal
 import scipy.fftpack as ff
 
-from sklearn.base import BaseEstimator, TransformerMixin, skl_clone
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.base import clone as skl_clone
 from sklearn.preprocessing import RobustScaler, FunctionTransformer, StandardScaler
 from sklearn.utils.validation import check_is_fitted
 

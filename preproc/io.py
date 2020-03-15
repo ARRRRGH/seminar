@@ -47,7 +47,10 @@ def align(arr1, arr2, path_wrp, no_data=-1):
         'count': 1,
         'dtype': rio.int8,
     })
-    del kwargs['path']
+    try:
+        del kwargs['path']
+    except KeyError:
+        pass
 
     with rio.open(path_wrp, 'w', **kwargs) as dst:
         rio.warp.reproject(
@@ -61,7 +64,7 @@ def align(arr1, arr2, path_wrp, no_data=-1):
             dst_nodata=no_data,
             dst_dtype=rio.int8)
 
-    tmp_reader = rs._RasterReader('')
+    tmp_reader = _RasterReader('')
     arrs, bboxs = tmp_reader.query(paths=path_wrp)
 
     algned = arrs[0]
