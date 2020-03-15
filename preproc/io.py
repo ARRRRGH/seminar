@@ -1,4 +1,9 @@
-from preproc.readers import _RasterReader
+try:
+    from preproc.readers import _RasterReader
+except ModuleNotFoundError:
+    import seminar
+    from seminar.preproc.readers import _RasterReader
+
 import rasterio as rio
 
 def read_raster(path, bbox=None, *args, **kwargs):

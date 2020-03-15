@@ -3,19 +3,10 @@ import itertools
 
 from scipy import signal
 import scipy.fftpack as ff
-from scipy.fft import fftshift
-from scipy.optimize import linear_sum_assignment
 
-import sklearn as skl
-import sklearn.cluster as cl
-from sklearn.neighbors import KNeighborsClassifier
-import sklearn.svm as svm
-from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import RobustScaler, FunctionTransformer, StandardScaler
 from sklearn.utils.validation import check_is_fitted
-from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import confusion_matrix
 
 
 class FFT_SAR_timeseries(BaseEstimator, TransformerMixin):
