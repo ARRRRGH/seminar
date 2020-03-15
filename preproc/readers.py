@@ -44,8 +44,8 @@ def rasterio_to_xarray(arr, meta, tmp_dir='.', fil_name=None, chunks=None, out=F
 def clean_raster_xarray(ret):
     if len(ret.band) == 1:
         ret = ret.squeeze('band', drop=True)
-    ret = ret.where(ret != ret.attrs['nodatavals'][0])
-    ret.attrs['nodatavals'] = np.nan
+    # ret = ret.where(ret != ret.attrs['nodatavals'][0])
+    # ret.attrs['nodatavals'] = np.nan
     return ret
 
 
