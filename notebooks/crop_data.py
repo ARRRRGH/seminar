@@ -25,7 +25,6 @@ from datetime import datetime
 
 # In[3]:
 
-
 bbox = BBox((5.905e5, 4.835e6, 6.6997e5, 4.798e5), crs=from_epsg(32631))
 
 
