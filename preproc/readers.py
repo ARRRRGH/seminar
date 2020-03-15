@@ -5,21 +5,15 @@ Created on Wed Jul  3 22:32:26 2019
 
 @author: jim
 """
-import pandas as pd
-import geopandas as gpd
+
 import os
-# import h5py
 import rasterio as rio
 from shapely.geometry import Point, GeometryCollection
-from astropy.time import Time
 import glob
 import numpy as np
 import datetime as dt
 import re
 from rasterio.mask import mask
-from joblib import Parallel, delayed
-from . import base_data_structures as bs
-from . import helpers as hp
 
 import xarray as xr
 import uuid
@@ -27,13 +21,8 @@ from rasterio.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.vrt import WarpedVRT
 
-from fiona.crs import from_epsg
-
-#from tqdm import tqdm
+# from tqdm import tqdm
 tqdm = lambda x: x
-
-from shapely import wkt
-import pickle as pkl
 
 
 def rasterio_to_xarray(arr, meta, tmp_dir='.', fil_name=None, chunks=None, out=False, *args, **kwargs):
@@ -89,8 +78,8 @@ class _RasterReader(_Reader):
     def __init__(self, path, bbox=None, time=None, *args, **kwargs):
         _Reader.__init__(self, path, bbox=bbox, time=time)
 
-    def read(self, paths=None, bbox=None, align=False, crs=None, chunks=None, fil_names=None,
-             out=False, out_dir='~', *args, **kwargs):
+    def read(self, paths=None, bbox=None, align=False, crs=None, chunks=None,
+             out=False, out_dir='./out', *args, **kwargs):
         """
         :param paths:
         :param bbox:
@@ -111,14 +100,14 @@ class _RasterReader(_Reader):
 
         # take bbox of first image if align but no bbox supplied
         if align and bbox is None:
-            bbox = bs.BBox.from_tif(paths[0])
+            bbox = BBox.from_tif(paths[0])
 
         if bbox is not None:
             for i, path in tqdm(enumerate(paths)):
 
                 # path arithmetic
                 new_dir = os.path.join(out_dir, 'query_out')
-                os.makedirs(new_dir, exist_ok=True)
+                os.makedirs(new_dir, exist_ok=False)
                 fil_name, ext = os.path.splitext(os.path.basename(path))
                 fil_name = os.path.join(new_dir, fil_name + '_cropped' + ext)
 
@@ -161,7 +150,7 @@ class _RasterReader(_Reader):
                     ret = clean_raster_xarray(ret)
 
                 # make bbox that is returned
-                out_bbox = bs.BBox.from_tif(path)
+                out_bbox = BBox.from_tif(path)
 
                 ret.attrs['crs'] = dict(rio.crs.CRS.from_string(ret.crs))
                 ret.attrs['path'] = path
@@ -312,7 +301,92 @@ class SeminarReader(_TimeRasterReader):
 
         return path_dict
 
+import geopandas as gpd
+from fiona.crs import from_epsg
+from shapely.geometry import box, Point, mapping, MultiPolygon
+import rasterio as rio
+import shapely as shp
 
 
-def read_raster(path, bbox=None, *args, **kwargs):
-    return _RasterReader(path, bbox).query(*args, **kwargs)
+class BBox(object):
+    def __init__(self, bbox, crs=None, res=None):
+        if type(bbox) == tuple and len(bbox) == 4:
+            shape = [box(*bbox)]
+        elif type(bbox) == shp.geometry.polygon.Polygon:
+            shape = [bbox]
+        elif type(bbox) == shp.geometry.MultiPolygon:
+            shape = [p for p in bbox]
+        else:
+            raise ValueError('bbox must be a quadruple or a shapely.geometry.polygon '
+                             'or shapely.geometry.MultiplePolygon')
+
+        self._df = gpd.GeoDataFrame({'geometry': shape}, crs=crs)
+        self._df = self._df.reset_index(drop=True)
+
+        if res is None:
+            self._res = 1, 1
+        else:
+            self._res = res
+
+    def set_resolution(self, res, crs=None):
+        if crs is None:
+            crs = self._df.crs
+        self._df.to_crs(crs=crs)
+        self._res = res
+
+    def get_resolution(self, crs=None):
+        if crs is None:
+            return self._res
+        else:
+            return self._project_resolution(crs)
+
+    def _project_resolution(self, crs):
+        left, bottom, right, top = self.get_bounds()
+
+        mid_point_coords = (left + right) // 2, (top + bottom) // 2
+        refx_point_coords = mid_point_coords[0] + self._res[0], mid_point_coords[1]
+        refy_point_coords = mid_point_coords[0], mid_point_coords[1] + self._res[1]
+        pts = [Point(coords) for coords in (mid_point_coords, refx_point_coords, refy_point_coords)]
+
+        df = gpd.GeoDataFrame({'geometry': pts}, crs=crs)
+        df = df.to_crs(crs=crs)
+        pts = df['geometry']
+
+        return abs(pts[1].coords[0][0] - pts[0].coords[0][0]), abs(pts[2].coords[0][1] - pts[0].coords[0][1])
+
+    def _get(self, crs=None):
+        if crs is not None:
+            return self._df.to_crs(crs=crs)
+        return self._df
+
+    def get_bounds(self, crs=None):
+        return MultiPolygon([p for p in self._get(crs=crs)['geometry']]).bounds
+
+    def get_rasterio_coords(self, crs=None):
+        # https://automating-gis-processes.github.io/CSC18/lessons/L6/clipping-raster.html
+        if crs is not None:
+            df = self._df.to_crs(crs=crs)
+        else:
+            df = self._df
+        # return [f['geometry'] for f in json.loads(_df.to_json())['features']]
+        return [mapping(geom) for geom in df['geometry']]
+
+    def to_xlim(self, crs=None):
+        bounds = self.get_bounds(crs)
+        return bounds[0], bounds[2]
+
+    def to_ylim(self, crs=None):
+        bounds = self.get_bounds(crs)
+        return bounds[1], bounds[3]
+
+    @staticmethod
+    def from_rasterio_bbox(bbox, crs):
+        return BBox((bbox.left, bbox.bottom, bbox.right, bbox.top), crs)
+
+    @staticmethod
+    def from_tif(path):
+        with rio.open(path) as fil:
+            bbox = fil.bounds
+            bbox = BBox.from_rasterio_bbox(bbox, fil.crs)
+            bbox.set_resolution(fil.res)
+        return bbox
