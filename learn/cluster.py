@@ -43,20 +43,24 @@ class ConstantShiftEmbedding(skl.base.BaseEstimator, skl.base.TransformerMixin):
             ax2 = ax1.twinx()
             plt.plot(np.arange(len(self.eigvs)), np.cumsum(self.eigvs) / np.sum(self.eigvs))
 
-    def fit(self, PMAT):
+    def fit(self, PMAT, is_dist=False):
         """ Calculate similarity/dissimiliarity matrix and all
         the necessary variables for calculating the embeddings.
 
         Args:
             PMAT (np.ndarray): proximity matrix
         """
+	
+        if not is_dist:
+             # Save data
+             self.PMAT = PMAT
 
-        # Save data
-        self.PMAT = PMAT
-
-        # create proper dissimilarity matrix, use shortest path
-        # self.D = graph.shortest_path(self.PMAT)
-        self.D = - self.PMAT
+             # create proper dissimilarity matrix, use shortest path
+             # self.D = graph.shortest_path(self.PMAT)
+             self.D = - self.PMAT
+        else:
+            self.PMAT = None
+            self.D = PMAT
 
         # make sure no infs in D
         inf_inds = np.where(np.isinf(self.D))
