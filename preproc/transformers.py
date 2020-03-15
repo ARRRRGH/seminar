@@ -4,7 +4,7 @@ import itertools
 from scipy import signal
 import scipy.fftpack as ff
 
-from sklearn.base import BaseEstimator, TransformerMixin, clone
+from sklearn.base import BaseEstimator, TransformerMixin, skl_clone
 from sklearn.preprocessing import RobustScaler, FunctionTransformer, StandardScaler
 from sklearn.utils.validation import check_is_fitted
 
@@ -61,13 +61,12 @@ class FFT_SAR_timeseries(BaseEstimator, TransformerMixin):
 
 class _FixedCombo(object):
     def __init__(self, edge_cols, transformer, clone=False, *targs, **tkwargs):
-        super().__init__()
 
         if not clone:
             self.transformers = [transformer(*targs, **tkwargs) for i in range(len(edge_cols) + 1)]
 
         else:
-            self.transformers = [clone(transformer) for i in range(len(edge_cols) + 1)]
+            self.transformers = [skl_clone(transformer) for i in range(len(edge_cols) + 1)]
 
         self.edge_cols = edge_cols
 
