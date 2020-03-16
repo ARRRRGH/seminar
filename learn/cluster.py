@@ -2,7 +2,8 @@ import sklearn as skl
 import numpy as np
 import matplotlib.pyplot as plt
 import sklearn.cluster as cl
-
+import scipy.sparse.csgraph as graph
+from sklearn.metrics.pairwise import  pairwise_distances
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.colors import SymLogNorm
 
@@ -54,8 +55,8 @@ class ConstantShiftEmbedding(skl.base.BaseEstimator, skl.base.TransformerMixin):
             self.PMAT = PMAT
 
             # create proper dissimilarity matrix, use shortest path
-            # self.D = graph.shortest_path(self.PMAT)
-            self.D = - self.PMAT
+            self.D = graph.shortest_path(self.PMAT)
+            # self.D = - self.PMAT
         else:
             self.PMAT = None
             self.D = PMAT
@@ -102,12 +103,27 @@ class ConstantShiftEmbedding(skl.base.BaseEstimator, skl.base.TransformerMixin):
         X = self.get_embedded_vectors(p)
         return cl.KMeans(k).fit(X), self.get_distance_matrix(X)
 
+    def predict(self, kmeans, p, Dnew):
+        one = np.eye(self.D.shape[0])
+        Q = one - 1 / len(self.D.shape[0])
+
+        q = np.ones(Dnew.shape)
+
+        Snew = - 0.5 * (np.linalg.multi_dot([Dnew, Q]) - q + np.linalg.multi_dot([self.D, Q]))
+
+        Vp = self.V[:, :]
+        eigvs_p = self.eigvs[:p]
+
+        new_emb = np.linalg.multi_dot([Snew, Vp, 1 / np.diag(np.sqrt(eigvs_p))])
+
+        return np.argmin(pairwise_distances(new_emb, kmeans.cluster_centers_), axis=1)
+        
+
     def get_distance_matrix(self, X):
         ret = X[:, None] - X
         return np.einsum('ijk -> ij', ret ** 2)
 
-    def plot_kmeans_dist(self, ks, p, figsize=(15, 35), vmin=0, vmax=3, vmin_orig=0, vmax_orig=3, labels=None,
-                         linthresh=0.5):
+    def plot_kmeans_dist(self, ks, p, figsize=(15, 35), vmin=0, vmax=3, linthresh=0.5):
         fig, axarr = plt.subplots(len(ks), 2, figsize=figsize)
         axarr = np.atleast_2d(axarr)
 
