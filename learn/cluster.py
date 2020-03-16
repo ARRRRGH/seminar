@@ -24,8 +24,7 @@ class ConstantShiftEmbedding(skl.base.BaseEstimator, skl.base.TransformerMixin):
         self.S = None
         self.D = None
         self.V = None
-        self.eigvs = None
-        # Add/change parameters, if necessary.
+        self.eigvs = None  # Add/change parameters, if necessary.
 
     def _center_matrix(self, arr):
         # TODO:  it's much faster to centralize subtracting from each row and column the respective mean, instead of
@@ -33,7 +32,6 @@ class ConstantShiftEmbedding(skl.base.BaseEstimator, skl.base.TransformerMixin):
         one = np.eye(len(arr))
         Q = one - 1 / len(arr)
         return np.linalg.multi_dot([Q, arr, Q])
-
 
     def plot_S_spectrum(self, plot_expl_var=False, values=False):
         fig, ax1 = plt.subplots()
@@ -50,14 +48,14 @@ class ConstantShiftEmbedding(skl.base.BaseEstimator, skl.base.TransformerMixin):
         Args:
             PMAT (np.ndarray): proximity matrix
         """
-	
-        if not is_dist:
-             # Save data
-             self.PMAT = PMAT
 
-             # create proper dissimilarity matrix, use shortest path
-             # self.D = graph.shortest_path(self.PMAT)
-             self.D = - self.PMAT
+        if not is_dist:
+            # Save data
+            self.PMAT = PMAT
+
+            # create proper dissimilarity matrix, use shortest path
+            # self.D = graph.shortest_path(self.PMAT)
+            self.D = - self.PMAT
         else:
             self.PMAT = None
             self.D = PMAT
@@ -77,7 +75,7 @@ class ConstantShiftEmbedding(skl.base.BaseEstimator, skl.base.TransformerMixin):
         eigv = np.linalg.eigvalsh(Sc)[0]
         D = self.D - 2 * eigv * (np.ones(self.D.shape) - np.eye(len(self.D)))
 
-        #Calculate S^~c
+        # Calculate S^~c
         self.S = - 0.5 * self._center_matrix(D)
 
         # Spectral Decomposition of S^~c
@@ -106,13 +104,14 @@ class ConstantShiftEmbedding(skl.base.BaseEstimator, skl.base.TransformerMixin):
 
     def get_distance_matrix(self, X):
         ret = X[:, None] - X
-        return np.einsum('ijk -> ij', ret**2)
+        return np.einsum('ijk -> ij', ret ** 2)
 
-    def plot_kmeans_dist(self, ks, p, figsize=(15, 35), vmin=0, vmax=3, vmin_orig=0, vmax_orig=3, labels=None, linthresh=0.5):
+    def plot_kmeans_dist(self, ks, p, figsize=(15, 35), vmin=0, vmax=3, vmin_orig=0, vmax_orig=3, labels=None,
+                         linthresh=0.5):
         fig, axarr = plt.subplots(len(ks), 2, figsize=figsize)
         axarr = np.atleast_2d(axarr)
 
-        for i,k in enumerate(ks):
+        for i, k in enumerate(ks):
             kmeans, dist = self.kmeans(k, p)
             sort = np.argsort(kmeans.labels_)
 
@@ -120,12 +119,8 @@ class ConstantShiftEmbedding(skl.base.BaseEstimator, skl.base.TransformerMixin):
             orig_sorted = orig_dist[sort, :][:, sort]
             denoised_sorted = dist[sort, :][:, sort]
 
-            im0 = axarr[i, 0].matshow(denoised_sorted, norm=SymLogNorm(vmin=vmin,
-                                                                       vmax=vmax,
-                                                                       linthresh=linthresh))
-            im1 = axarr[i, 1].matshow(orig_sorted, norm=SymLogNorm(vmin=vmin,
-                                                                   vmax=vmax,
-                                                                   linthresh=linthresh))
+            im0 = axarr[i, 0].matshow(denoised_sorted, norm=SymLogNorm(vmin=vmin, vmax=vmax, linthresh=linthresh))
+            im1 = axarr[i, 1].matshow(orig_sorted, norm=SymLogNorm(vmin=vmin, vmax=vmax, linthresh=linthresh))
 
             sorted_labels = kmeans.labels_[sort]
             diff = np.diff(sorted_labels)
@@ -146,4 +141,3 @@ class ConstantShiftEmbedding(skl.base.BaseEstimator, skl.base.TransformerMixin):
             cax = divider.append_axes("right", size="5%", pad=0.05)
             plt.colorbar(im1, cax=cax)
             axarr[i, 1].set_title('k = %d, Original' % k)
-
