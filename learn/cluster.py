@@ -107,17 +107,17 @@ class ConstantShiftEmbedding(skl.base.BaseEstimator, skl.base.TransformerMixin):
         pred = []
 
         one = np.eye(self.D.shape[0])
-        Q = one - 1 / len(self.D.shape[0])
+        Q = one - 1 / self.D.shape[0]
 
         Vp = self.V[:, :p]
         eigvs_p = self.eigvs[:p]
 
-        for Dnew in pairwise_distances_chunked(X.values, self.PMAT, metric=metric, n_jobs=n_jobs):
+        for Dnew in pairwise_distances_chunked(X, self.PMAT, metric=metric, n_jobs=n_jobs):
             q = np.ones(Dnew.shape)
 
-            Snew = - 0.5 * (np.linalg.multi_dot([Dnew, Q]) - q + np.linalg.multi_dot([self.D, Q]))
+            Snew = - 0.5 * (np.linalg.multi_dot([Dnew, Q]) - np.linalg.multi_dot([q, self.D, Q]))
 
-            new_emb = np.linalg.multi_dot([Snew, Vp, 1 / np.diag(np.sqrt(eigvs_p))])
+            new_emb = np.linalg.multi_dot([Snew, Vp, np.diag(1 / np.sqrt(eigvs_p))])
             pred.append(np.argmin(pairwise_distances(new_emb, kmeans.cluster_centers_), axis=1))
 
         return np.concatenate(pred)
