@@ -12,7 +12,6 @@ import torch
 
 use_cuda = torch.cuda.is_available()
 DEVICE = torch.device("cuda" if use_cuda else "cpu")
-DEVICE = torch.device("cpu")
 
 
 class ConvLSTMCell(nn.Module):
@@ -24,7 +23,7 @@ class ConvLSTMCell(nn.Module):
 
         super(ConvLSTMCell, self).__init__()
 
-        self.input_dim  = in_channels
+        self.input_dim = in_channels
         self.hidden_dim = hidden_channels
 
         self.kernel_size = kernel_size
@@ -35,7 +34,8 @@ class ConvLSTMCell(nn.Module):
                               out_channels=4 * self.hidden_dim,
                               kernel_size=self.kernel_size,
                               padding=self.padding,
-                              bias=self.bias)
+                              bias=self.bias,
+                              stride=(1, 1, 1, 1, 1))
 
     def forward(self, input_tensor, cur_state):
         
@@ -56,7 +56,7 @@ class ConvLSTMCell(nn.Module):
         return h_next, c_next
 
     def init_hidden(self, b, h, w):
-        return (torch.zeros(b, self.hidden_dim, h, w).to(DEVICE)),
+        return (torch.zeros(b, self.hidden_dim, h, w).to(DEVICE),
                 torch.zeros(b, self.hidden_dim, h, w).to(DEVICE))
 
 
