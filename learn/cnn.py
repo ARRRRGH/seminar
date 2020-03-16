@@ -30,7 +30,7 @@ class LSTM(ptl.LightningModule):
         self.lstm = ConvLSTM(in_channels, hidden_channels, kernel_size, num_layers,
                              batch_first=batch_first, bias=bias, return_all_layers=return_all_layers)
 
-        padding = kernel_size[0] // 2, kernel_size[1] // 2
+        padding = kernel_size[-1][0] // 2, kernel_size[-1][1] // 2
         self.conv = nn.Conv2d(in_channels=hidden_channels[-1], kernel_size=kernel_size[-1], out_channels=1,
                               padding=padding)
 
