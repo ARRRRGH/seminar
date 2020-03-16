@@ -48,7 +48,7 @@ class LSTM(ptl.LightningModule):
         data, target = batch
         loss = F.cross_entropy(input=self.forward(data), target=target)
 
-        tqdm_dict = {'loss': loss, 'batch_idx': batch_idx}
+        tqdm_dict = {'training_loss': loss, 'batch_idx': batch_idx}
         log = {'progress_bar': tqdm_dict,
                'log': tqdm_dict}
 
