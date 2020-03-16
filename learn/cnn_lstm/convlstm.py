@@ -10,6 +10,11 @@ import torch.nn as nn
 import torch
 
 
+use_cuda = torch.cuda.is_available()
+DEVICE = torch.device("cuda" if use_cuda else "cpu")
+DEVICE = torch.device("cpu")
+
+
 class ConvLSTMCell(nn.Module):
     """
     Basic CLSTM cell.
@@ -51,8 +56,8 @@ class ConvLSTMCell(nn.Module):
         return h_next, c_next
 
     def init_hidden(self, b, h, w):
-        return (torch.zeros(b, self.hidden_dim, h, w).cuda(),
-                torch.zeros(b, self.hidden_dim, h, w).cuda())
+        return (torch.zeros(b, self.hidden_dim, h, w).to(DEVICE)),
+                torch.zeros(b, self.hidden_dim, h, w).to(DEVICE))
 
 
 class ConvLSTM(nn.Module):
