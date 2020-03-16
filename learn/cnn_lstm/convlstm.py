@@ -27,7 +27,7 @@ class ConvLSTMCell(nn.Module):
         self.hidden_dim = hidden_channels
 
         self.kernel_size = kernel_size
-        self.padding = kernel_size[0] // 2, kernel_size[1] // 2
+        self.padding = (0, 0, 0, kernel_size[0] // 2, kernel_size[1] // 2)
         self.bias = bias
         
         self.conv = nn.Conv2d(in_channels=self.input_dim + self.hidden_dim,
