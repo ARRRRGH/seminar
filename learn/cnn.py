@@ -16,7 +16,7 @@ except ModuleNotFoundError:
 
 
 class TrainLSTM(ptl.LightningModule):
-    def __init__(self, nr_classes, input_shape, train_image_folder, n_jobs, batch_size, in_channels, hidden_channels,
+    def __init__(self, classes, input_shape, train_image_folder, n_jobs, batch_size, in_channels, hidden_channels,
                  kernel_size, num_layers, batch_first=False, bias=True, return_all_layers=False, lr=1e-3):
         super().__init__()
 
@@ -24,6 +24,7 @@ class TrainLSTM(ptl.LightningModule):
         self.batch_size = batch_size
         self.n_jobs = n_jobs
         self.lr = lr
+        self.classes = {val: key for key, val in enumerate(classes)}
 
         self.lstm = ConvLSTM(in_channels, hidden_channels, kernel_size, num_layers,
                              batch_first=batch_first, bias=bias, return_all_layers=return_all_layers)
@@ -42,7 +43,7 @@ class TrainLSTM(ptl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         data, target = batch
-        return F.cross_entropy(input=self.forward(batch), target=target)
+        return F.cross_entropy(input=self.forward(batch), target=self.classes[target])
 
     def train_dataloader(self):
         loader = lambda path: torch.Tensor(np.load(path))
