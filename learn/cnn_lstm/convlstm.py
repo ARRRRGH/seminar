@@ -159,7 +159,7 @@ class ConvLSTM(nn.Module):
     @staticmethod
     def _extend_for_multilayer(param, num_layers):
         if isinstance(param, int):
-            param = [param] * num_layers
+            param = [(param, param)] * num_layers
         return param
 
 
