@@ -15,7 +15,7 @@ except ModuleNotFoundError:
     from seminar.cnn_lstm.convlstm import ConvLSTM
 
 
-class TrainLSTM(ptl.LightningModule):
+class LSTM(ptl.LightningModule):
     def __init__(self, classes, input_shape, train_image_folder, n_jobs, batch_size, in_channels, hidden_channels,
                  kernel_size, num_layers, batch_first=False, bias=True, return_all_layers=False, lr=1e-3):
         super().__init__()
@@ -33,7 +33,7 @@ class TrainLSTM(ptl.LightningModule):
         self.conv = nn.Conv2d(in_channels=hidden_channels[-1], kernel_size=kernel_size[-1], out_channels=1,
                               padding=padding)
 
-        self.linear_head = nn.Linear(in_features=int(np.prod(input_shape[1:])), out_features=nr_classes)
+        self.linear_head = nn.Linear(in_features=int(np.prod(input_shape)), out_features=len(classes))
 
     def forward(self, x):
         output = self.lstm(x)
