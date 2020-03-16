@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
+from collections import OrderedDict
 
 try:
     from .cnn_lstm.convlstm import ConvLSTM
@@ -45,7 +46,15 @@ class LSTM(ptl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         data, target = batch
-        return F.cross_entropy(input=self.forward(data), target=target)
+        loss = F.cross_entropy(input=self.forward(data), target=target)
+
+        tqdm_dict = {'loss': loss, 'batch_idx': batch_idx}
+        log = {'progress_bar': tqdm_dict,
+               'log': tqdm_dict}
+
+        output = OrderedDict({'loss': loss})
+        output.update(log)
+        return output
 
     def train_dataloader(self):
         is_valid_file = lambda path: path.endswith('npy')
