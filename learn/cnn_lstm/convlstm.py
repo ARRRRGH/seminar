@@ -35,7 +35,8 @@ class ConvLSTMCell(nn.Module):
                               kernel_size=self.kernel_size,
                               padding=self.padding,
                               bias=self.bias,
-                              stride=(1, 1, 1, 1, 1))
+                              stride=1,
+                              dilation=1)
 
     def forward(self, input_tensor, cur_state):
         
