@@ -24,7 +24,8 @@ class LSTM(ptl.LightningModule):
         self.batch_size = batch_size
         self.n_jobs = n_jobs
         self.lr = lr
-        self.classes = {val: key for key, val in enumerate(classes)}
+        self._classes = {val: key for key, val in enumerate(classes)}
+        self.classes = np.vectorize(lambda entry: self._classes.get(entry, entry))
 
         self.lstm = ConvLSTM(in_channels, hidden_channels, kernel_size, num_layers,
                              batch_first=batch_first, bias=bias, return_all_layers=return_all_layers)
@@ -43,11 +44,11 @@ class LSTM(ptl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         data, target = batch
-        return F.cross_entropy(input=self.forward(batch), target=self.classes[target])
+        return F.cross_entropy(input=self.forward(data), target=self.classes[target])
 
     def train_dataloader(self):
         is_valid_file = lambda path: path.endswith('npy')
-        loader = lambda path: torch.Tensor(np.load(path))
+        loader = lambda path: torch.Tensor(np.load(path)).unsqueeze(0)
         dset = ImageFolder(self.train_image_folder, loader=loader, is_valid_file=is_valid_file)
 
         return DataLoader(dset, batch_size=self.batch_size, num_workers=self.n_jobs)
