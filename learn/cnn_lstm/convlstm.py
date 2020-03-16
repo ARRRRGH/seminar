@@ -139,8 +139,8 @@ class ConvLSTM(nn.Module):
             last_state_list.append([h, c])
 
         if not self.return_all_layers:
-            layer_output_list = layer_output_list[-1:]
-            last_state_list = last_state_list[-1:]
+            layer_output_list = layer_output_list[-1]
+            last_state_list = last_state_list[-1]
 
         return layer_output_list, last_state_list
 
