@@ -44,7 +44,7 @@ class LSTM(ptl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         data, target = batch
-        return F.cross_entropy(input=self.forward(data), target=self.classes[target])
+        return F.cross_entropy(input=self.forward(data), target=self.classes(target))
 
     def train_dataloader(self):
         is_valid_file = lambda path: path.endswith('npy')
