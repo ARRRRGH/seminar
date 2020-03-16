@@ -46,10 +46,11 @@ class LSTM(ptl.LightningModule):
         return F.cross_entropy(input=self.forward(batch), target=self.classes[target])
 
     def train_dataloader(self):
+        is_valid_file = lambda path: path.endswith('npy')
         loader = lambda path: torch.Tensor(np.load(path))
-        ImageFolder(self.train_image_folder, loader=loader)
+        dset = ImageFolder(self.train_image_folder, loader=loader, is_valid_file=is_valid_file)
 
-        return DataLoader(ImageFolder, batch_size=self.batch_size, num_workers=self.n_jobs)
+        return DataLoader(dset, batch_size=self.batch_size, num_workers=self.n_jobs)
 
     def configure_optimizers(self):
         return Adam(self.parameters(), lr=self.lr)
