@@ -6,7 +6,6 @@ import scipy.sparse.csgraph as graph
 from sklearn.metrics.pairwise import  pairwise_distances_chunked, pairwise_distances
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.colors import SymLogNorm
-from utils import run_jobs
 
 
 class ConstantShiftEmbedding(skl.base.BaseEstimator, skl.base.TransformerMixin):
