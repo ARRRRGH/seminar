@@ -24,8 +24,9 @@ class LSTM(ptl.LightningModule):
         self.batch_size = batch_size
         self.n_jobs = n_jobs
         self.lr = lr
-        self._classes = {val: key for key, val in enumerate(classes)}
-        self.classes = np.vectorize(lambda entry: self._classes.get(entry, entry))
+        # self._classes = {val: key for key, val in enumerate(classes)}
+        # self.call_classes = np.vectorize(lambda entry: self._classes.get(entry, entry))
+        # self.classes = lambda tens: torch.Tensor(tens).to(torch.float)
 
         self.lstm = ConvLSTM(in_channels, hidden_channels, kernel_size, num_layers,
                              batch_first=batch_first, bias=bias, return_all_layers=False)
@@ -38,13 +39,13 @@ class LSTM(ptl.LightningModule):
 
     def forward(self, x):
         h, c = self.lstm(x)
-        output = self.conv(h).flatten()
+        output = self.conv(h.squeeze(2)[:, -1:, :, :]).flatten(1)
 
         return self.linear_head(output)
 
     def training_step(self, batch, batch_idx):
         data, target = batch
-        return F.cross_entropy(input=self.forward(data), target=self.classes(target))
+        return F.cross_entropy(input=self.forward(data), target=target)
 
     def train_dataloader(self):
         is_valid_file = lambda path: path.endswith('npy')
