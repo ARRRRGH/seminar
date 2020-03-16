@@ -17,7 +17,7 @@ except ModuleNotFoundError:
 
 class LSTM(ptl.LightningModule):
     def __init__(self, classes, input_shape, train_image_folder, n_jobs, batch_size, in_channels, hidden_channels,
-                 kernel_size, num_layers, batch_first=False, bias=True, return_all_layers=False, lr=1e-3):
+                 kernel_size, num_layers, batch_first=False, bias=True, lr=1e-3):
         super().__init__()
 
         self.train_image_folder = train_image_folder
@@ -28,7 +28,7 @@ class LSTM(ptl.LightningModule):
         self.classes = np.vectorize(lambda entry: self._classes.get(entry, entry))
 
         self.lstm = ConvLSTM(in_channels, hidden_channels, kernel_size, num_layers,
-                             batch_first=batch_first, bias=bias, return_all_layers=return_all_layers)
+                             batch_first=batch_first, bias=bias, return_all_layers=False)
 
         padding = kernel_size[-1][0] // 2, kernel_size[-1][1] // 2
         self.conv = nn.Conv2d(in_channels=hidden_channels[-1], kernel_size=kernel_size[-1], out_channels=1,
@@ -37,8 +37,8 @@ class LSTM(ptl.LightningModule):
         self.linear_head = nn.Linear(in_features=int(np.prod(input_shape)), out_features=len(classes))
 
     def forward(self, x):
-        output = self.lstm(x)
-        output = self.conv(output).flatten()
+        h, c = self.lstm(x)
+        output = self.conv(h).flatten()
 
         return self.linear_head(output)
 
