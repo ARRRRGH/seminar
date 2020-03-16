@@ -48,7 +48,7 @@ class LSTM(ptl.LightningModule):
 
     def train_dataloader(self):
         is_valid_file = lambda path: path.endswith('npy')
-        loader = lambda path: torch.Tensor(np.load(path)).unsqueeze(0)
+        loader = lambda path: torch.Tensor(np.load(path))
         dset = ImageFolder(self.train_image_folder, loader=loader, is_valid_file=is_valid_file)
 
         return DataLoader(dset, batch_size=self.batch_size, num_workers=self.n_jobs)
