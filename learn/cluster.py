@@ -106,12 +106,13 @@ class ConstantShiftEmbedding(skl.base.BaseEstimator, skl.base.TransformerMixin):
 
     def predict(self, kmeans, p, X, metric='euclidean', n_jobs=6):
         pred = []
+
         one = np.eye(self.D.shape[0])
-        for Dnew in pairwise_distances_chunked(X.values, self.PMAT, metric=metric, n_jobs=n_jobs):
         Q = one - 1 / len(self.D.shape[0])
 
         Vp = self.V[:, :p]
         eigvs_p = self.eigvs[:p]
+
         for Dnew in pairwise_distances_chunked(X.values, self.PMAT, metric=metric, n_jobs=n_jobs):
             q = np.ones(Dnew.shape)
 

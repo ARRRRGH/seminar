@@ -1,8 +1,13 @@
 import xarray as xr
 import numpy as np
 import pandas as pd
-from utils import run_jobs
 from functools import partial
+
+try:
+    from utils import run_jobs
+except ModuleNotFoundError:
+    import seminar
+    from seminar.utils import run_jobs
 
 
 def pred_array(model, inp, arr=None, model_arr=None, batch_size=10000, no_val=-1, n_jobs=6):
