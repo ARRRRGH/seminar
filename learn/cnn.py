@@ -17,11 +17,14 @@ except ModuleNotFoundError:
 
 
 class LSTM(ptl.LightningModule):
-    def __init__(self, classes, input_shape, train_image_folder, n_jobs, batch_size, in_channels, hidden_channels,
-                 kernel_size, num_layers, batch_first=False, bias=True, lr=1e-3):
+    def __init__(self, classes, input_shape, train_image_folder, val_image_folder,
+                 n_jobs, batch_size, in_channels, hidden_channels, kernel_size, num_layers,
+                 batch_first=True, bias=True, lr=1e-3):
         super().__init__()
 
         self.train_image_folder = train_image_folder
+        self.val_image_folder = val_image_folder
+        
         self.batch_size = batch_size
         self.n_jobs = n_jobs
         self.lr = lr
@@ -49,8 +52,7 @@ class LSTM(ptl.LightningModule):
         loss = F.cross_entropy(input=self.forward(data), target=target)
 
         tqdm_dict = {'training_loss': loss, 'batch_idx': batch_idx}
-        log = {'progress_bar': tqdm_dict,
-               'log': tqdm_dict}
+        log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
 
         output = OrderedDict({'loss': loss})
         output.update(log)
@@ -60,6 +62,13 @@ class LSTM(ptl.LightningModule):
         is_valid_file = lambda path: path.endswith('npy')
         loader = lambda path: torch.Tensor(np.load(path))
         dset = ImageFolder(self.train_image_folder, loader=loader, is_valid_file=is_valid_file)
+
+        return DataLoader(dset, batch_size=self.batch_size, num_workers=self.n_jobs)
+
+    def val_dataloader(self):
+        is_valid_file = lambda path: path.endswith('npy')
+        loader = lambda path: torch.Tensor(np.load(path))
+        dset = ImageFolder(self.val_im, loader=loader, is_valid_file=is_valid_file)
 
         return DataLoader(dset, batch_size=self.batch_size, num_workers=self.n_jobs)
 
