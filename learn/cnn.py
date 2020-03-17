@@ -50,7 +50,7 @@ class LSTM(ptl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         data, target = batch
-        loss = F.cross_entropy(input=self.forward(data), target=target)
+        loss = F.cross_entropy(input=self.forward(data), target=self.classes(target))
 
         tqdm_dict = {'training_loss': loss, 'batch_idx': batch_idx}
         log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
@@ -69,7 +69,7 @@ class LSTM(ptl.LightningModule):
     def val_dataloader(self):
         is_valid_file = lambda path: path.endswith('npy')
         loader = lambda path: torch.Tensor(np.load(path))
-        dset = ImageFolder(self.val_im, loader=loader, is_valid_file=is_valid_file)
+        dset = ImageFolder(self.val_image_folder, loader=loader, is_valid_file=is_valid_file)
 
         return DataLoader(dset, batch_size=self.batch_size, num_workers=self.n_jobs)
 
