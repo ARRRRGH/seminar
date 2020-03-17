@@ -24,13 +24,14 @@ class LSTM(ptl.LightningModule):
 
         self.train_image_folder = train_image_folder
         self.val_image_folder = val_image_folder
-        
+
         self.batch_size = batch_size
         self.n_jobs = n_jobs
         self.lr = lr
-        # self._classes = {val: key for key, val in enumerate(classes)}
-        # self.call_classes = np.vectorize(lambda entry: self._classes.get(entry, entry))
-        # self.classes = lambda tens: torch.Tensor(tens).to(torch.float)
+
+        self._classes = {val: key for key, val in enumerate(classes)}
+        self.call_classes = np.vectorize(lambda entry: self._classes.get(entry, entry))
+        self.classes = lambda tens: torch.Tensor(self.call_classes(tens)).to(torch.long)
 
         self.lstm = ConvLSTM(in_channels, hidden_channels, kernel_size, num_layers,
                              batch_first=batch_first, bias=bias, return_all_layers=False)
@@ -43,7 +44,7 @@ class LSTM(ptl.LightningModule):
 
     def forward(self, x):
         h, c = self.lstm(x)
-        output = self.conv(h.squeeze(2)[:, -1:, :, :]).flatten(1)
+        output = self.conv(h.squeeze(2)[:, -1, :, :]).flatten(1)
 
         return self.linear_head(output)
 
