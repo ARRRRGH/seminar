@@ -17,7 +17,7 @@ def write_out(arr, dst_path, default_meta):
         'height': arr.shape[0],
         'width': arr.shape[1],
         'count': 1,
-        'dtype': rio.int8,
+        'dtype': arr.dtype,
         'crs': meta['crs'],
     })
     del meta['path']
@@ -45,7 +45,7 @@ def align(arr1, arr2, path_wrp, no_data=-1):
         'height': arr1.shape[0],
         'driver': 'GTiff',
         'count': 1,
-        'dtype': rio.int8,
+        'dtype': arr2.dtype,
     })
     try:
         del kwargs['path']
