@@ -20,7 +20,10 @@ except ModuleNotFoundError:
     from seminar.cnn_lstm.convlstm import ConvLSTM
 
 
-class LSTM(ptl.LightningModule):
+use_cuda = torch.cuda.is_available()
+DEVICE = torch.device("cuda" if use_cuda else "cpu")
+
+class _LSTM(ptl.LightningModule):
     def __init__(self, classes, input_shape, train_image_folder, val_image_folder,
                  n_jobs, batch_size, in_channels, hidden_channels, kernel_size, num_layers,
                  batch_first=True, bias=True, lr=1e-3, epoch_size=None):
@@ -39,14 +42,40 @@ class LSTM(ptl.LightningModule):
         self.call_classes = np.vectorize(lambda entry: self._classes.get(entry, entry))
         self.classes = lambda arr: torch.Tensor(self.call_classes(arr)).to(torch.long)
 
+    def _get_dataloader(self, path):
+        is_valid_file = lambda path: path.endswith('npy')
+        loader = lambda path: torch.Tensor(np.load(path))
+
+        dset = ImageFolder(path, loader=loader, is_valid_file=is_valid_file)
+
+        if self.epoch_size is not None:
+            dset = Subset(dset, np.random.choice(len(dset), self.epoch_size, replace=False))
+
+        return DataLoader(dset, batch_size=self.batch_size, num_workers=self.n_jobs)
+
+    def train_dataloader(self):
+        return self._get_dataloader(self.train_image_folder)
+
+    def val_dataloader(self):
+        return self._get_dataloader(self.val_image_folder)
+
+    def configure_optimizers(self):
+        return Adam(self.parameters(), lr=self.lr)
+
+
+class LSTM(_LSTM):
+
+    def __init__(self, input_shape, in_channels, hidden_channels, kernel_size, num_layers, bias=True, *args, **kwargs):
+        super(LSTM, self).__init__(*args, **kwargs)
+
         self.lstm = ConvLSTM(in_channels, hidden_channels, kernel_size, num_layers,
-                             batch_first=batch_first, bias=bias, return_all_layers=False)
+                             batch_first=True, bias=bias, return_all_layers=False)
 
         padding = kernel_size[-1][0] // 2, kernel_size[-1][1] // 2
         self.conv = nn.Conv2d(in_channels=hidden_channels[-1], kernel_size=kernel_size[-1], out_channels=1,
                               padding=padding)
 
-        self.linear_head = nn.Linear(in_features=int(np.prod(input_shape)), out_features=len(classes))
+        self.linear_head = nn.Linear(in_features=int(np.prod(input_shape)), out_features=len(self._classes))
         self.loss = nn.CrossEntropyLoss()
 
     def forward(self, x):
@@ -58,7 +87,7 @@ class LSTM(ptl.LightningModule):
             output.append(self.conv(h[:, t, :, :, :]).flatten(1))
 
         output = torch.stack(output, dim=1)
-        return self.linear_head(torch.max(output, dim=1))
+        return self.linear_head(torch.max(output, dim=1)[0])
 
     def training_step(self, batch, batch_idx):
         data, target = batch
@@ -87,25 +116,52 @@ class LSTM(ptl.LightningModule):
         tensorboard_logs = {'val_loss': avg_loss}
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
-    def _get_dataloader(self, path):
-        is_valid_file = lambda path: path.endswith('npy')
-        loader = lambda path: torch.Tensor(np.load(path))
 
-        dset = ImageFolder(path, loader=loader, is_valid_file=is_valid_file)
+class LSTM2(_LSTM):
 
-        if self.epoch_size is not None:
-            dset = Subset(dset, np.random.choice(len(dset), self.epoch_size, replace=False))
+    def __init__(self, hidden_size, embed_size, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-        return DataLoader(dset, batch_size=self.batch_size, num_workers=self.n_jobs)
+        self.encoder = EncoderCNN(embed_size=embed_size)
+        self.decoder = DecoderRNN(embed_size=embed_size, hidden_size=hidden_size)
 
-    def train_dataloader(self):
-        return self._get_dataloader(self.train_image_folder)
+        self.linear_head = nn.Linear(in_features=hidden_size, out_features=len(self._classes))
 
-    def val_dataloader(self):
-        return self._get_dataloader(self.val_image_folder)
+    def forward(self, x):
 
-    def configure_optimizers(self):
-        return Adam(self.parameters(), lr=self.lr)
+        encs = []
+        for t in range(x.shape[1]):
+            encs.append(self.encoder(x[:, t, :, :, :]))
+
+        out_hidden_states = self.decoder(torch.stack(encs, dim=1))
+        return self.linear_head(torch.max(out_hidden_states, dim=1)[0])
+
+    def training_step(self, batch, batch_idx):
+        data, target = batch
+        loss = self.loss(input=self.forward(data), target=self.classes(target))
+
+        tqdm_dict = {'training_loss': loss, 'batch_idx': batch_idx}
+        log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
+
+        output = OrderedDict({'loss': loss})
+        output.update(log)
+        return output
+
+    def validation_step(self, batch, batch_idx):
+        data, target = batch
+        loss = self.loss(input=self.forward(data), target=self.classes(target))
+
+        tqdm_dict = {'val_loss': loss, 'batch_idx': batch_idx}
+        log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
+
+        output = OrderedDict({'val_loss': loss})
+        output.update(log)
+        return output
+
+    def validation_end(self, outputs):
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        tensorboard_logs = {'val_loss': avg_loss}
+        return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
 
 class EncoderCNN(nn.Module):
@@ -128,7 +184,6 @@ class EncoderCNN(nn.Module):
         self.prelu = nn.PReLU()
 
     def forward(self, images):
-
         # get the embeddings from the densenet
         densenet_outputs = self.dropout(self.prelu(self.densenet(images)))
 
@@ -139,43 +194,33 @@ class EncoderCNN(nn.Module):
 
 
 class DecoderRNN(nn.Module):
-    def __init__(self, embed_size, hidden_size, vocab_size, num_layers=1):
+    def __init__(self, embed_size, hidden_size, out_classes=10):
         super(DecoderRNN, self).__init__()
 
         # define the properties
         self.embed_size = embed_size
         self.hidden_size = hidden_size
-        self.vocab_size = vocab_size
+        self.out_classes = out_classes
 
         # lstm cell
-        self.lstm_cell = nn.LSTMCell(input_size=embed_size, hidden_size=hidden_size)
+        self.lstm_cell = nn.LSTMCell(input_size=self.embed_size, hidden_size=self.hidden_size)
 
         # output fully connected layer
-        self.fc_out = nn.Linear(in_features=self.hidden_size, out_features=self.vocab_size)
+        self.fc_out = nn.Linear(in_features=self.hidden_size, out_features=self.out_classes)
 
-        # embedding layer
-        self.embed = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.embed_size)
 
-        # activations
-        self.softmax = nn.Softmax(dim=1)
-
-    def forward(self, features, captions):
+    def forward(self, features, embedded):
 
         # batch size
         batch_size = features.size(0)
 
         # init the hidden and cell states to zeros
-        hidden_state = torch.zeros((batch_size, self.hidden_size)).cuda()
-        cell_state = torch.zeros((batch_size, self.hidden_size)).cuda()
+        hidden_state = torch.zeros((batch_size, self.hidden_size)).to(DEVICE)
+        cell_state = torch.zeros((batch_size, self.hidden_size)).to(DEVICE)
 
-        # define the output tensor placeholder
-        outputs = torch.empty((batch_size, captions.size(1), self.vocab_size)).cuda()
-
-        # embed the captions
-        captions_embed = self.embed(captions)
-
+        outputs = []
         # pass the caption word by word
-        for t in range(captions.size(1)):
+        for t in range(embedded.size(1)):
 
             # for the first time step the input is the feature vector
             if t == 0:
@@ -183,12 +228,12 @@ class DecoderRNN(nn.Module):
 
             # for the 2nd+ time step, using teacher forcer
             else:
-                hidden_state, cell_state = self.lstm_cell(captions_embed[:, t, :], (hidden_state, cell_state))
+                hidden_state, cell_state = self.lstm_cell(embedded[:, t, :], (hidden_state, cell_state))
 
             # output of the attention mechanism
             out = self.fc_out(hidden_state)
 
             # build the output tensor
-            outputs[:, t, :] = out
+            outputs.append(out)
 
-        return outputs
+        return torch.stack(outputs, dim=1)
