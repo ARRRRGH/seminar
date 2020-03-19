@@ -23,8 +23,9 @@ except ModuleNotFoundError:
 use_cuda = torch.cuda.is_available()
 DEVICE = torch.device("cuda" if use_cuda else "cpu")
 
+
 class _LSTM(ptl.LightningModule):
-    def __init__(self, classes, train_image_folder, val_image_folder, n_jobs, batch_size, lr=1e-3, epoch_size=None):
+    def __init__(self, classes, train_image_folder, val_image_folder, n_jobs, batch_size, seq_len, lr=1e-3, epoch_size=None):
         super().__init__()
 
         self.train_image_folder = train_image_folder
@@ -39,6 +40,8 @@ class _LSTM(ptl.LightningModule):
         self._classes = {val: key for key, val in enumerate(classes)}
         self.call_classes = np.vectorize(lambda entry: self._classes.get(entry, entry))
         self.classes = lambda arr: torch.Tensor(self.call_classes(arr)).to(torch.long)
+
+        self.seq_len = seq_len
 
     def _get_dataloader(self, path):
         is_valid_file = lambda path: path.endswith('npy')
@@ -81,7 +84,7 @@ class LSTM(_LSTM):
         h, c = h[0], c[0]
 
         output = []
-        for t in range(h.shape[1]):
+        for t in range(self.seq_len):
             output.append(self.conv(h[:, t, :, :, :]).flatten(1))
 
         output = torch.stack(output, dim=1)
@@ -123,16 +126,18 @@ class LSTM2(_LSTM):
         self.encoder = EncoderCNN(embed_size=embed_size)
         self.decoder = DecoderRNN(embed_size=embed_size, hidden_size=hidden_size)
 
+        self.reduce = nn.Conv1d(in_channels=self.seq_len, out_channels=1)
         self.linear_head = nn.Linear(in_features=hidden_size, out_features=len(self._classes))
+        self.loss = nn.CrossEntropyLoss()
 
     def forward(self, x):
-
         encs = []
-        for t in range(x.shape[1]):
+        for t in range(self.seq_len):
             encs.append(self.encoder(x[:, t, :, :, :]))
 
         out_hidden_states = self.decoder(torch.stack(encs, dim=1))
-        return self.linear_head(torch.max(out_hidden_states, dim=1)[0])
+        # return self.linear_head(torch.max(out_hidden_states, dim=1)[0])
+        return self.linear_head(self.reduce(out_hidden_states).squeeze(1))
 
     def training_step(self, batch, batch_idx):
         data, target = batch
@@ -163,7 +168,7 @@ class LSTM2(_LSTM):
 
 
 class EncoderCNN(nn.Module):
-    def __init__(self, embed_size = 1024):
+    def __init__(self, embed_size=1024):
         super().__init__()
 
         # get the pretrained densenet model
@@ -205,7 +210,6 @@ class DecoderRNN(nn.Module):
 
         # output fully connected layer
         self.fc_out = nn.Linear(in_features=self.hidden_size, out_features=self.out_classes)
-
 
     def forward(self, features, embedded):
 
