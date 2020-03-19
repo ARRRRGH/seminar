@@ -6,10 +6,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
-from torch.utils.data import DataLoader
+
+from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import ImageFolder
+
 from collections import OrderedDict
 from torchvision import models
+
 
 try:
     from .cnn_lstm.convlstm import ConvLSTM
@@ -20,13 +23,15 @@ except ModuleNotFoundError:
 class LSTM(ptl.LightningModule):
     def __init__(self, classes, input_shape, train_image_folder, val_image_folder,
                  n_jobs, batch_size, in_channels, hidden_channels, kernel_size, num_layers,
-                 batch_first=True, bias=True, lr=1e-3):
+                 batch_first=True, bias=True, lr=1e-3, epoch_size=None):
         super().__init__()
 
         self.train_image_folder = train_image_folder
         self.val_image_folder = val_image_folder
 
         self.batch_size = batch_size
+        self.epoch_size = epoch_size
+
         self.n_jobs = n_jobs
         self.lr = lr
 
@@ -77,19 +82,22 @@ class LSTM(ptl.LightningModule):
         output.update(log)
         return output
 
+    def _get_dataloader(self, path):
+        is_valid_file = lambda path: path.endswith('npy')
+        loader = lambda path: torch.Tensor(np.load(path))
+
+        dset = ImageFolder(path, loader=loader, is_valid_file=is_valid_file)
+
+        if self.epoch_size is not None:
+            dset = Subset(dset, np.random.choice(len(dset), self.epoch_size, replace=False))
+
+        return DataLoader(dset, batch_size=self.batch_size, num_workers=self.n_jobs)
+
     def train_dataloader(self):
-        is_valid_file = lambda path: path.endswith('npy')
-        loader = lambda path: torch.Tensor(np.load(path))
-        dset = ImageFolder(self.train_image_folder, loader=loader, is_valid_file=is_valid_file)
+        return self._get_dataloader(self.train_image_folder)
 
-        return DataLoader(dset, batch_size=self.batch_size, num_workers=self.n_jobs)
-
-    def val_dataloader(self):
-        is_valid_file = lambda path: path.endswith('npy')
-        loader = lambda path: torch.Tensor(np.load(path))
-        dset = ImageFolder(self.val_image_folder, loader=loader, is_valid_file=is_valid_file)
-
-        return DataLoader(dset, batch_size=self.batch_size, num_workers=self.n_jobs)
+    def train_dataloader(self):
+        return self._get_dataloader(self.val_image_folder)
 
     def configure_optimizers(self):
         return Adam(self.parameters(), lr=self.lr)
