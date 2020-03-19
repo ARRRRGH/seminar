@@ -24,9 +24,7 @@ use_cuda = torch.cuda.is_available()
 DEVICE = torch.device("cuda" if use_cuda else "cpu")
 
 class _LSTM(ptl.LightningModule):
-    def __init__(self, classes, input_shape, train_image_folder, val_image_folder,
-                 n_jobs, batch_size, in_channels, hidden_channels, kernel_size, num_layers,
-                 batch_first=True, bias=True, lr=1e-3, epoch_size=None):
+    def __init__(self, classes, train_image_folder, val_image_folder, n_jobs, batch_size, lr=1e-3, epoch_size=None):
         super().__init__()
 
         self.train_image_folder = train_image_folder
@@ -166,7 +164,7 @@ class LSTM2(_LSTM):
 
 class EncoderCNN(nn.Module):
     def __init__(self, embed_size = 1024):
-        super(EncoderCNN, self).__init__()
+        super().__init__()
 
         # get the pretrained densenet model
         self.densenet = models.densenet121(pretrained=True)
@@ -195,7 +193,7 @@ class EncoderCNN(nn.Module):
 
 class DecoderRNN(nn.Module):
     def __init__(self, embed_size, hidden_size, out_classes=10):
-        super(DecoderRNN, self).__init__()
+        super().__init__()
 
         # define the properties
         self.embed_size = embed_size
