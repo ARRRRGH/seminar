@@ -49,7 +49,7 @@ class LSTM(ptl.LightningModule):
         h, c = h[0], c[0]
 
         output = []
-        for t in h.shape[1]:
+        for t in range(h.shape[1]):
             output.append(self.conv(h[:, t, :, :, :])).flatten(1)
         return self.linear_head(torch.stack(output, dim=1))
 
