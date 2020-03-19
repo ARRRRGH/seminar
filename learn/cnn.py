@@ -25,7 +25,8 @@ DEVICE = torch.device("cuda" if use_cuda else "cpu")
 
 
 class _LSTM(ptl.LightningModule):
-    def __init__(self, classes, train_image_folder, val_image_folder, n_jobs, batch_size, seq_len, lr=1e-3, epoch_size=None):
+    def __init__(self, classes, train_image_folder, val_image_folder, n_jobs, batch_size, seq_len=None,
+                 lr=1e-3, epoch_size=None):
         super().__init__()
 
         self.train_image_folder = train_image_folder
@@ -84,7 +85,7 @@ class LSTM(_LSTM):
         h, c = h[0], c[0]
 
         output = []
-        for t in range(self.seq_len):
+        for t in range(h.shape[1]):
             output.append(self.conv(h[:, t, :, :, :]).flatten(1))
 
         output = torch.stack(output, dim=1)
@@ -128,11 +129,10 @@ class LSTM2(_LSTM):
 
         self.reduce = nn.Conv1d(in_channels=self.seq_len, out_channels=1)
         self.linear_head = nn.Linear(in_features=hidden_size, out_features=len(self._classes))
-        self.loss = nn.CrossEntropyLoss()
 
     def forward(self, x):
         encs = []
-        for t in range(self.seq_len):
+        for t in range(x.shape[1]):
             encs.append(self.encoder(x[:, t, :, :, :]))
 
         out_hidden_states = self.decoder(torch.stack(encs, dim=1))
