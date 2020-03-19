@@ -50,7 +50,7 @@ class LSTM(ptl.LightningModule):
 
         output = []
         for t in range(h.shape[1]):
-            output.append(self.conv(h[:, t, :, :, :])).flatten(1)
+            output.append(self.conv(h[:, t, :, :, :]).flatten(1))
         return self.linear_head(torch.stack(output, dim=1))
 
     def training_step(self, batch, batch_idx):
