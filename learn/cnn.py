@@ -82,6 +82,11 @@ class LSTM(ptl.LightningModule):
         output.update(log)
         return output
 
+    def validation_end(self, outputs):
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        tensorboard_logs = {'val_loss': avg_loss}
+        return {'val_loss': avg_loss, 'log': tensorboard_logs}
+
     def _get_dataloader(self, path):
         is_valid_file = lambda path: path.endswith('npy')
         loader = lambda path: torch.Tensor(np.load(path))
