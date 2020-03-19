@@ -96,7 +96,7 @@ class LSTM(ptl.LightningModule):
     def train_dataloader(self):
         return self._get_dataloader(self.train_image_folder)
 
-    def train_dataloader(self):
+    def val_dataloader(self):
         return self._get_dataloader(self.val_image_folder)
 
     def configure_optimizers(self):
