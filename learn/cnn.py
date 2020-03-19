@@ -64,7 +64,7 @@ class _LSTM(ptl.LightningModule):
 class LSTM(_LSTM):
 
     def __init__(self, input_shape, in_channels, hidden_channels, kernel_size, num_layers, bias=True, *args, **kwargs):
-        super(LSTM, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.lstm = ConvLSTM(in_channels, hidden_channels, kernel_size, num_layers,
                              batch_first=True, bias=bias, return_all_layers=False)
