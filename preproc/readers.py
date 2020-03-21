@@ -144,7 +144,7 @@ class _RasterReader(_Reader):
                 if not out:
                     try:
                         os.remove(tmp_path)
-                    except FileNotFoundError or TypeError:
+                    except (FileNotFoundError, TypeError):
                         pass
 
                     if is_query_dir_new:
