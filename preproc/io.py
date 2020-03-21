@@ -69,7 +69,7 @@ def align(arr1, arr2, path_wrp, no_data=-1):
     arrs, bboxs = tmp_reader.query(paths=path_wrp)
 
     algned = arrs[0]
-    algned = algned.assign_coords(arr1.coords)
+    algned = algned.assign_coords({'x': arr1.coords['x'], 'y': arr1.coords['y']})
     algned.attrs = arr1.attrs
     algned.attrs['path'] = path_wrp
 
