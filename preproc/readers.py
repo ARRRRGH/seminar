@@ -136,7 +136,9 @@ class _RasterReader(_Reader):
 
                     tmp_path = tmp_path2
 
-                ret.attrs['crs'] = dict(rio.crs.CRS.from_string(ret.crs))
+                if 'crs' in ret.attrs:
+                    ret.attrs['crs'] = dict(rio.crs.CRS.from_string(ret.crs))
+                    
                 ret.attrs['path'] = tmp_path
                 
                 if not out:
