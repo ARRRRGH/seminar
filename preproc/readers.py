@@ -138,13 +138,13 @@ class _RasterReader(_Reader):
 
                 if 'crs' in ret.attrs:
                     ret.attrs['crs'] = dict(rio.crs.CRS.from_string(ret.crs))
-                    
+
                 ret.attrs['path'] = tmp_path
                 
                 if not out:
                     try:
                         os.remove(tmp_path)
-                    except FileNotFoundError:
+                    except FileNotFoundError or TypeError:
                         pass
 
                     if is_query_dir_new:
