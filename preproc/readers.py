@@ -169,9 +169,9 @@ class _RasterReader(_Reader):
         return out_xarrs, out_bboxs
 
     @staticmethod
-    def _crop_tif(path, bbox, tmp_dir='.', fil_name=None, xarray=True, *args, **kwargs):
+    def _crop_tif(path, bbox, tmp_dir='.', fil_name=None, simple=False, *args, **kwargs):
 
-        if xarray:
+        if not simple:
             with rio.open(path) as fil:
                 coords = bbox.get_rasterio_coords(fil.crs.data)
                 out_img, out_transform = mask(dataset=fil, shapes=coords, crop=True)
@@ -190,8 +190,8 @@ class _RasterReader(_Reader):
 
         else:
             with rio.open(path) as fil:
-                out = fil.read(window=bbox)
-                tmp_path = None,
+                out = xr.DataArray(fil.read(window=bbox))
+                tmp_path = None
                 crs = fil.crs
 
         return out, tmp_path, crs

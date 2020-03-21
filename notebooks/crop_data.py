@@ -89,9 +89,10 @@ arrs_opt.name = 'opt'
 
 
 # Read ground truth and align
-arrs, bboxs = io.read_raster('/home/jim/PycharmProjects/seminar/notebooks/' +
-                             'data/ground_truth_cropped/query_out/pnrc_mos_2016_c_rasterized30x30m_UTM31N_cropped.tif')
-ground_truth_classif = arrs[0]
+ground_truth_classif, bboxs = io.read_raster('/home/jim/PycharmProjects/seminar/notebooks/' +
+                                             'data/ground_truth_cropped/query_out/' +
+                                             'pnrc_mos_2016_c_rasterized30x30m_UTM31N_cropped.tif')
+
 ground_truth_classif.data = ground_truth_classif.astype(rio.int32)
 ground_truth_classif = ground_truth_classif.expand_dims('band')
 aligned_gt = align(arrs_vv, ground_truth_classif,
