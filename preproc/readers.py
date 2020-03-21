@@ -190,8 +190,8 @@ class _RasterReader(_Reader):
 
         else:
             with rio.open(path) as fil:
-                out = fil.read(window=bbox)
-                tmp_path = None,
+                out = xr.DataArray(fil.read(window=bbox))
+                tmp_path = None
                 crs = fil.crs
 
         return out, tmp_path, crs
