@@ -241,7 +241,7 @@ class _RasterReader(_Reader):
         # if crs is not None and not align:
         #     ret = [hp.xarray_to_crs(r, crs) for r in ret]
 
-        if len(ret) == 1
+        if len(ret) == 1:
             return ret[0], bbox[0]
         return ret, bbox
 
