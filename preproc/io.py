@@ -63,7 +63,7 @@ def align(arr1, arr2, path_wrp, no_data=-1):
             dst_crs=arr1.crs,
             resampling=rio.warp.Resampling.nearest,
             dst_nodata=no_data,
-            dst_dtype=rio.int8)
+            dst_dtype=arr2.dtype)
 
     tmp_reader = _RasterReader('')
     arrs, bboxs = tmp_reader.query(paths=path_wrp)
