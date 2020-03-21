@@ -26,7 +26,6 @@ from rasterio.vrt import WarpedVRT
 import geopandas as gpd
 from shapely.geometry import box, Point, mapping, MultiPolygon
 import shapely as shp
-
 from tqdm import tqdm
 
 
@@ -87,11 +86,8 @@ class _RasterReader(_Reader):
         if align and bbox is None:
             bbox = BBox.from_tif(paths[0])
 
-        if mute:
-            tqdm = lambda x: x
-
         if bbox is not None:
-            for i, path in tqdm(enumerate(paths)):
+            for i, path in tqdm(enumerate(paths), disable=mute):
 
                 # path arithmetic
                 query_dir = os.path.join(out_dir, 'query_out')
@@ -142,7 +138,7 @@ class _RasterReader(_Reader):
                 out_bboxs.append(bbox)
 
         else:
-            for path in tqdm(paths):
+            for path in tqdm(paths, disable=mute):
                 with rio.open(path, 'r') as fil:
                     ret = xr.open_rasterio(fil, chunks=chunks)
 
