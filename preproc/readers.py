@@ -38,20 +38,11 @@ def rasterio_to_xarray(arr, meta, tmp_dir='.', fil_name=None, chunks=None, out=F
     with rio.open(tmp_path, 'w', **meta) as fil2:
         fil2.write(arr)
     ret = xr.open_rasterio(tmp_path, chunks=chunks)
-    ret = clean_raster_xarray(ret)
 
     if chunks is None and not out:
         os.remove(tmp_path)
 
     return ret, tmp_path
-
-
-def clean_raster_xarray(ret):
-    if len(ret.band) == 1:
-        ret = ret.squeeze('band', drop=True)
-    # ret = ret.where(ret != ret.attrs['nodatavals'][0])
-    # ret.attrs['nodatavals'] = np.nan
-    return ret
 
 
 class _Reader(object):
@@ -80,13 +71,7 @@ class _RasterReader(_Reader):
 
     def read(self, paths=None, bbox=None, align=False, crs=None, chunks=None,
              out=False, out_dir='./out', *args, **kwargs):
-        """
-        :param paths:
-        :param bbox:
-        :param args:
-        :param kwargs:
-        :return:
-        """
+
         bbox = self._which_bbox(bbox)
 
         # single file read
@@ -157,7 +142,6 @@ class _RasterReader(_Reader):
             for path in tqdm(paths):
                 with rio.open(path, 'r') as fil:
                     ret = xr.open_rasterio(fil, chunks=chunks)
-                    ret = clean_raster_xarray(ret)
 
                 # make bbox that is returned
                 out_bbox = BBox.from_tif(path)
