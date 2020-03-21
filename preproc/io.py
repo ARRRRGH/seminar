@@ -6,6 +6,7 @@ except ModuleNotFoundError:
 
 import rasterio as rio
 
+
 def read_raster(path, bbox=None, *args, **kwargs):
     return _RasterReader(path, bbox).query(*args, **kwargs)
 
