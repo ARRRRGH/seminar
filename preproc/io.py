@@ -15,9 +15,9 @@ def write_out(arr, dst_path, default_meta):
     meta = default_meta.copy()
     meta.update({
         'driver': 'GTiff',
-        'height': arr.shape[0],
-        'width': arr.shape[1],
-        'count': 1,
+        'height': arr.shape[-2],
+        'width': arr.shape[-1],
+        'count': arr.shape[0],
         'dtype': arr.dtype,
         'crs': meta['crs'],
     })
@@ -42,8 +42,8 @@ def align(arr1, arr2, path_wrp, no_data=-1):
     kwargs.update({
         'crs': arr1.attrs['crs'],
         'transform': arr1.attrs['transform'],
-        'width': arr1.shape[2],
-        'height': arr1.shape[1],
+        'width': arr1.shape[-1],
+        'height': arr1.shape[-2],
         'driver': 'GTiff',
         'count': arr2.shape[0],
         'dtype': arr2.dtype,
