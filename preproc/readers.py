@@ -70,7 +70,7 @@ class _RasterReader(_Reader):
         _Reader.__init__(self, path, bbox=bbox, time=time)
 
     def read(self, paths=None, bbox=None, align=False, crs=None, chunks=None,
-             out=False, out_dir='./out', *args, **kwargs):
+             out=False, out_dir='./out', mute=False, *args, **kwargs):
 
         bbox = self._which_bbox(bbox)
 
@@ -86,6 +86,9 @@ class _RasterReader(_Reader):
         # take bbox of first image if align but no bbox supplied
         if align and bbox is None:
             bbox = BBox.from_tif(paths[0])
+
+        if mute:
+            tqdm = lambda x: x
 
         if bbox is not None:
             for i, path in tqdm(enumerate(paths)):
