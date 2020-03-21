@@ -1,5 +1,6 @@
 from joblib import Parallel, delayed
 
+
 def run_jobs(jobs, joblib=True, n_jobs=4):
     if joblib:
         jobs = [delayed(job)() for job in jobs]

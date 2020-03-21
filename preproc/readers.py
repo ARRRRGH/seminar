@@ -7,13 +7,15 @@ Created on Wed Jul  3 22:32:26 2019
 """
 
 import os
-import rasterio as rio
-from shapely.geometry import Point, GeometryCollection
+from shapely.geometry import Point
 import glob
 import numpy as np
 import datetime as dt
 import re
+
+import rasterio as rio
 from rasterio.mask import mask
+from rasterio.windows import Window
 
 import xarray as xr
 import uuid
@@ -21,8 +23,11 @@ from rasterio.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.vrt import WarpedVRT
 
-# from tqdm import tqdm
-tqdm = lambda x: x
+import geopandas as gpd
+from shapely.geometry import box, Point, mapping, MultiPolygon
+import shapely as shp
+
+from tqdm import tqdm
 
 
 def rasterio_to_xarray(arr, meta, tmp_dir='.', fil_name=None, chunks=None, out=False, *args, **kwargs):
@@ -70,11 +75,6 @@ class _Reader(object):
 
 
 class _RasterReader(_Reader):
-    """
-    _RasterReader is an interface between SWISSMap and rasterio reading. It handles queries related to raster operations
-    during reading. Readers specific to some data type or directory structure build on top of _RasterReader.
-    """
-
     def __init__(self, path, bbox=None, time=None, *args, **kwargs):
         _Reader.__init__(self, path, bbox=bbox, time=time)
 
@@ -106,13 +106,18 @@ class _RasterReader(_Reader):
             for i, path in tqdm(enumerate(paths)):
 
                 # path arithmetic
-                new_dir = os.path.join(out_dir, 'query_out')
-                os.makedirs(new_dir, exist_ok=False)
+                query_dir = os.path.join(out_dir, 'query_out')
+                is_query_dir_new = os.path.exists(query_dir)
+
+                if not is_query_dir_new:
+                    os.makedirs(query_dir)
+
                 fil_name, ext = os.path.splitext(os.path.basename(path))
-                fil_name = os.path.join(new_dir, fil_name + '_cropped' + ext)
+                fil_name = os.path.join(query_dir, fil_name + '_cropped' + ext)
 
                 # crop tif and save to tmp file
-                ret, tmp_path, fil_crs = _RasterReader._crop_tif(path, bbox=bbox, chunks=chunks, out=True, fil_name=fil_name, *args, **kwargs)
+                ret, tmp_path, fil_crs = _RasterReader._crop_tif(path, bbox=bbox, chunks=chunks, out=True,
+                                                                 fil_name=fil_name, *args, **kwargs)
 
                 crs = crs if crs is not None else fil_crs
 
@@ -140,6 +145,9 @@ class _RasterReader(_Reader):
                     except FileNotFoundError:
                         pass
 
+                    if is_query_dir_new:
+                        os.removedirs(query_dir)
+
                 out_xarrs.append(ret)
                 out_bboxs.append(bbox)
 
@@ -161,22 +169,30 @@ class _RasterReader(_Reader):
         return out_xarrs, out_bboxs
 
     @staticmethod
-    def _crop_tif(path, bbox, tmp_dir='.', fil_name=None, *args, **kwargs):
-        with rio.open(path) as fil:
-            coords = bbox.get_rasterio_coords(fil.crs.data)
-            out_img, out_transform = mask(dataset=fil, shapes=coords, crop=True)
-            out_meta = fil.meta.copy()
-            crs = fil.crs
+    def _crop_tif(path, bbox, tmp_dir='.', fil_name=None, xarray=True, *args, **kwargs):
 
-            out_meta.update({"driver": "GTiff",
-                             "height": out_img.shape[1],
-                             "width": out_img.shape[2],
-                             "transform": out_transform,
-                             "count": fil.count,
-                             "dtype": out_img.dtype})
+        if xarray:
+            with rio.open(path) as fil:
+                coords = bbox.get_rasterio_coords(fil.crs.data)
+                out_img, out_transform = mask(dataset=fil, shapes=coords, crop=True)
+                out_meta = fil.meta.copy()
+                crs = fil.crs
 
-        out, tmp_path = rasterio_to_xarray(out_img, out_meta, tmp_dir=tmp_dir,
-                                           fil_name=fil_name, *args, **kwargs)
+                out_meta.update({"driver": "GTiff",
+                                 "height": out_img.shape[1],
+                                 "width": out_img.shape[2],
+                                 "transform": out_transform,
+                                 "count": fil.count,
+                                 "dtype": out_img.dtype})
+
+            out, tmp_path = rasterio_to_xarray(out_img, out_meta, tmp_dir=tmp_dir,
+                                               fil_name=fil_name, *args, **kwargs)
+
+        else:
+            with rio.open(path) as fil:
+                out = fil.read(window=bbox)
+                tmp_path = None,
+                crs = fil.crs
 
         return out, tmp_path, crs
 
@@ -225,6 +241,8 @@ class _RasterReader(_Reader):
         # if crs is not None and not align:
         #     ret = [hp.xarray_to_crs(r, crs) for r in ret]
 
+        if len(ret) == 1
+            return ret[0], bbox[0]
         return ret, bbox
 
 
@@ -300,12 +318,6 @@ class SeminarReader(_TimeRasterReader):
             path_dict[os.path.join(self.path, fname)] = dt.datetime(year=year, month=month, day=day)
 
         return path_dict
-
-import geopandas as gpd
-from fiona.crs import from_epsg
-from shapely.geometry import box, Point, mapping, MultiPolygon
-import rasterio as rio
-import shapely as shp
 
 
 class BBox(object):
