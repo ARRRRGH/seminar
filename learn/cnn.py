@@ -190,14 +190,14 @@ class EncoderCNN(nn.Module):
         # replace the classifier with a fully connected embedding layer
         # self.densenet.classifier = nn.Linear(in_features=1024, out_features=1024)
 
-        self.convs = []
-        self.bns = []
+        self.convs = nn.ModuleList()
+        self.bns = nn.ModuleList()
         last_ncl = in_channels
         for i, ncl in enumerate(channels):
             self.convs.append(nn.Conv2d(in_channels=last_ncl,
                                         out_channels=ncl, kernel_size=3, padding=1))
 
-            self.bns.append(nn.BatchNorm2d(num_features=in_channels * 2))
+            self.bns.append(nn.BatchNorm2d(num_features=ncl))
 
             last_ncl = ncl
 
@@ -209,7 +209,7 @@ class EncoderCNN(nn.Module):
         self.dropout = nn.Dropout2d(p=drop_rate)
 
         # activation layers
-        self.prelu = nn.PReLU()
+        # self.prelu = nn.PReLU()
 
     def forward(self, images):
 
@@ -220,7 +220,7 @@ class EncoderCNN(nn.Module):
 
         outs = images
         for bn, conv in zip(self.bns, self.convs):
-            outs = torch.relu(bn(conv(images)))
+            outs = torch.relu(bn(conv(outs)))
 
         # outs = self.pre1(outs.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
         outs = self.dropout(outs).flatten(1)
