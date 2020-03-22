@@ -197,7 +197,7 @@ class EncoderCNN(nn.Module):
         # self.pre2 = nn.Linear(in_features=in_channels * 4, out_features=3)
 
         # add another fully connected layer
-        self.embed = nn.Linear(in_features=shape[1] * shape[2] * in_channels * 4, out_features=embed_size)
+        self.embed = nn.Linear(in_features=shape[1] * shape[2] * in_channels * 6, out_features=embed_size)
 
         # dropout layer
         self.dropout = nn.Dropout(p=0.5)
