@@ -197,7 +197,7 @@ class EncoderCNN(nn.Module):
             self.convs.append(nn.Conv2d(in_channels=last_ncl,
                                         out_channels=ncl, kernel_size=3, padding=1))
 
-            self.bn.append(nn.BatchNorm2d(num_features=in_channels * 2))
+            self.bns.append(nn.BatchNorm2d(num_features=in_channels * 2))
 
             last_ncl = ncl
 
