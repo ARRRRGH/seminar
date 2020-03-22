@@ -178,9 +178,9 @@ class LSTM2(_LSTM):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         std_loss = torch.stack([x['val_loss'] for x in outputs]).std()
 
-        acc_per_class = {'avg_acc_' + str(cls): torch.stack([x['acc_per_class'][cls] for x in outputs
-                                                             if cls in x['acc_per_class']]).mean()
-                         for cls in self._classes}
+        acc_per_class = {'avg_acc_' + str(cls_out): torch.stack([x['acc_per_class'][cls_in] for x in outputs
+                                                             if cls_in in x['acc_per_class']]).mean()
+                         for cls_out, cls_in in self._classes.items()}
 
         tensorboard_logs = {'val_loss': avg_loss, 'std_loss': std_loss}
         ret = {'val_loss': avg_loss, 'log': tensorboard_logs}
