@@ -93,8 +93,7 @@ class _RasterReader(_Reader):
                 query_dir = os.path.join(out_dir, 'query_out')
                 is_query_dir_new = os.path.exists(query_dir)
 
-                if not is_query_dir_new:
-                    os.makedirs(query_dir)
+                os.makedirs(query_dir, exist_ok=True)
 
                 fil_name, ext = os.path.splitext(os.path.basename(path))
                 fil_name = os.path.join(query_dir, fil_name + '_cropped' + ext)
@@ -124,7 +123,7 @@ class _RasterReader(_Reader):
                     ret.attrs['crs'] = dict(rio.crs.CRS.from_string(ret.crs))
 
                 ret.attrs['path'] = tmp_path
-                
+
                 if not out:
                     try:
                         os.remove(tmp_path)
@@ -288,7 +287,7 @@ class SeminarReader(_TimeRasterReader):
 
     def _create_path_dict(self):
         fnames = glob.glob(os.path.join(self.path, '*.tif'))
-        
+
         acc = []
         for f in fnames:
             if len(re.findall(self.incl_pattern, f)) != 0:
