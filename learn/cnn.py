@@ -200,7 +200,7 @@ class EncoderCNN(nn.Module):
         self.embed = nn.Linear(in_features=shape[1] * shape[2] * in_channels * 6, out_features=embed_size)
 
         # dropout layer
-        self.dropout = nn.Dropout(p=0.5)
+        self.dropout = nn.Dropout(p=0.7)
 
         # activation layers
         # self.prelu = nn.PReLU()
@@ -222,7 +222,7 @@ class EncoderCNN(nn.Module):
         outs = outs.flatten(1)
 
         # pass through the fully connected
-        embeddings = self.embed(outs)
+        embeddings = self.dropout(self.embed(outs))
 
         return embeddings
 
@@ -241,6 +241,8 @@ class DecoderRNN(nn.Module):
         # output fully connected layer
         self.fc_out = nn.Linear(in_features=self.hidden_size, out_features=self.hidden_size)
 
+        self.dropout = nn.Dropout(p=0.7)
+
     def forward(self, embedded):
 
         # batch size
@@ -257,7 +259,7 @@ class DecoderRNN(nn.Module):
             hidden_state, cell_state = self.lstm_cell(embedded[:, t, :], (hidden_state, cell_state))
 
             # output of the attention mechanism
-            out = self.fc_out(hidden_state)
+            out = self.dropout(self.fc_out(hidden_state))
 
             # build the output tensor
             outputs.append(out)
