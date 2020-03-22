@@ -121,10 +121,10 @@ class LSTM(_LSTM):
 
 class LSTM2(_LSTM):
 
-    def __init__(self, hidden_size, embed_size, in_channels, reduce_kernel_size=3, *args, **kwargs):
+    def __init__(self, input_shape, hidden_size, embed_size, in_channels, reduce_kernel_size=3, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.encoder = EncoderCNN(embed_size=embed_size, in_channels=in_channels)
+        self.encoder = EncoderCNN(embed_size=embed_size, in_channels=in_channels, shape=input_shape)
         self.decoder = DecoderRNN(embed_size=embed_size, hidden_size=hidden_size)
 
         self.reduce = nn.Conv1d(in_channels=self.seq_len, out_channels=1, kernel_size=reduce_kernel_size)
@@ -170,7 +170,7 @@ class LSTM2(_LSTM):
 
 
 class EncoderCNN(nn.Module):
-    def __init__(self, embed_size=1024, in_channels=8):
+    def __init__(self, embed_size=1024, in_channels=8, shape=None):
         super().__init__()
 
         assert in_channels > 6
@@ -185,12 +185,12 @@ class EncoderCNN(nn.Module):
         # replace the classifier with a fully connected embedding layer
         #self.densenet.classifier = nn.Linear(in_features=1024, out_features=1024)
 
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=3)
-        self.conv2 = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=3)
-        self.conv3 = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=3)
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=3, padding=1)
 
         # add another fully connected layer
-        self.embed = nn.Linear(in_features=1024, out_features=embed_size)
+        self.embed = nn.Linear(in_features=shape[1] * shape[2] * 3, out_features=embed_size)
 
         # dropout layer
         self.dropout = nn.Dropout(p=0.5)
@@ -205,8 +205,8 @@ class EncoderCNN(nn.Module):
         # get the embeddings from the densenet
         # outs = self.dropout(self.prelu(self.densenet(preproc_images)))
 
-        outs = self.prelu(self.conv3(self.sigmoid(self.conv2(self.sigmoid(self.conv1(preproc_images))))))
-        outs = self.dropout(outs)
+        outs = self.prelu(self.conv3(torch.sigmoid(self.conv2(torch.sigmoid(self.conv1(preproc_images))))))
+        outs = self.dropout(outs.flatten(1))
         # pass through the fully connected
         embeddings = self.embed(outs)
 
