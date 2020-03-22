@@ -165,7 +165,11 @@ class LSTM2(_LSTM):
         with torch.no_grad():
             pred = nll.argmax(dim=1)
             classes, counts = torch.unique(target, return_counts=True)
-            acc_per_class = {cls: (pred[torch.where(self.classes(target) == cls)] == target) for cls, n in zip(classes, counts)}
+
+            acc_per_class = {}
+            for cls, n in zip(classes, counts):
+                inds = torch.where(self.classes(target) == cls)
+                acc_per_class[cls] = (pred[inds] == target) / n
 
         tqdm_dict = {'val_loss': loss, 'batch_idx': batch_idx}
         log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
