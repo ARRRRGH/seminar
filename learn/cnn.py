@@ -133,7 +133,8 @@ class LSTM2(_LSTM):
                                 padding=reduce_kernel_size // 2)
         self.linear_head = nn.Linear(in_features=hidden_size, out_features=len(self._classes))
 
-        self.loss = nn.CrossEntropyLoss()
+        # self.loss = nn.CrossEntropyLoss()
+        self.logsoft = nn.LogSoftmax()
 
     def forward(self, x):
         encs = []
@@ -156,20 +157,36 @@ class LSTM2(_LSTM):
 
     def validation_step(self, batch, batch_idx):
         data, target = batch
-        loss = self.loss(input=self.forward(data), target=self.classes(target))
+        # loss = self.loss(input=self.forward(data), target=self.classes(target))
+        nll = - self.logsoft(self.forward(data))
+        loss = nll[data]
+
+        # calc accuracy per class
+        with torch.no_grad():
+            pred = nll.argmax(dim=1)
+            classes, counts = torch.unique(target, return_counts=True)
+            acc_per_class = {cls: (pred[torch.where(target == cls)] == target) for cls, n in zip(classes, counts)}
 
         tqdm_dict = {'val_loss': loss, 'batch_idx': batch_idx}
         log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
 
-        output = OrderedDict({'val_loss': loss})
+        output = OrderedDict({'val_loss': loss, 'acc_per_class': acc_per_class})
         output.update(log)
         return output
 
     def validation_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         std_loss = torch.stack([x['val_loss'] for x in outputs]).std()
+
+        acc_per_class = {'avg_acc_' + str(cls): torch.stack([x['acc_per_class'][cls] for x in outputs
+                                                             if cls in x['acc_per_class']]).mean()
+                         for cls in self._classes}
+
         tensorboard_logs = {'val_loss': avg_loss, 'std_loss': std_loss}
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
+        ret = {'val_loss': avg_loss, 'log': tensorboard_logs}
+        ret.update(acc_per_class)
+
+        return ret
 
 
 class EncoderCNN(nn.Module):
