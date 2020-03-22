@@ -12,3 +12,5 @@ notebooks/.ipynb_checkpoints/
 notebooks/data/
 
 learn/ConvGRU-ConvLSTM-PyTorch
+
+*.ipynb

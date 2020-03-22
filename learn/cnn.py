@@ -121,10 +121,10 @@ class LSTM(_LSTM):
 
 class LSTM2(_LSTM):
 
-    def __init__(self, hidden_size, embed_size, *args, **kwargs):
+    def __init__(self, hidden_size, embed_size, in_channels, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.encoder = EncoderCNN(embed_size=embed_size)
+        self.encoder = EncoderCNN(embed_size=embed_size, in_channels=in_channels)
         self.decoder = DecoderRNN(embed_size=embed_size, hidden_size=hidden_size)
 
         self.reduce = nn.Conv1d(in_channels=self.seq_len, out_channels=1)
@@ -168,8 +168,14 @@ class LSTM2(_LSTM):
 
 
 class EncoderCNN(nn.Module):
-    def __init__(self, embed_size=1024):
+    def __init__(self, embed_size=1024, in_channels=8):
         super().__init__()
+
+        assert in_channels > 6
+
+        # cast to right dimensions
+        self.pre1 = nn.Linear(in_features=in_channels, out_features=in_channels//2)
+        self.pre2 = nn.Linear(in_features=in_channels//2, out_features=3)
 
         # get the pretrained densenet model
         self.densenet = models.densenet121(pretrained=True)
@@ -187,8 +193,11 @@ class EncoderCNN(nn.Module):
         self.prelu = nn.PReLU()
 
     def forward(self, images):
+
+        preproc_images = self.pre2(torch.sigmoid(self.pre1(images.permute(0, 1, 3, 4, 2)))).permute(0, 1, 4, 2, 3)
+        
         # get the embeddings from the densenet
-        densenet_outputs = self.dropout(self.prelu(self.densenet(images)))
+        densenet_outputs = self.dropout(self.prelu(self.densenet(preproc_images)))
 
         # pass through the fully connected
         embeddings = self.embed(densenet_outputs)
