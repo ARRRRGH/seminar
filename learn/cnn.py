@@ -121,11 +121,13 @@ class LSTM(_LSTM):
 
 class LSTM2(_LSTM):
 
-    def __init__(self, channels, input_shape, hidden_size, embed_size, in_channels, reduce_kernel_size=3, *args, **kwargs):
+    def __init__(self, channels, input_shape, hidden_size, embed_size, in_channels, reduce_kernel_size=3,
+                 drop_rate=0.5, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.encoder = EncoderCNN(channels, embed_size=embed_size, in_channels=in_channels, shape=input_shape)
-        self.decoder = DecoderRNN(embed_size=embed_size, hidden_size=hidden_size)
+        self.encoder = EncoderCNN(channels, embed_size=embed_size, in_channels=in_channels,
+                                  shape=input_shape, drop_rate=drop_rate)
+        self.decoder = DecoderRNN(embed_size=embed_size, hidden_size=hidden_size, drop_rate=drop_rate)
 
         self.reduce = nn.Conv1d(in_channels=self.seq_len, out_channels=1, kernel_size=reduce_kernel_size,
                                 padding=reduce_kernel_size // 2)
