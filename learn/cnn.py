@@ -159,13 +159,13 @@ class LSTM2(_LSTM):
         data, target = batch
         # loss = self.loss(input=self.forward(data), target=self.classes(target))
         nll = - self.logsoft(self.forward(data))
-        loss = nll[data]
+        loss = nll[:, self.classes(target)]
 
         # calc accuracy per class
         with torch.no_grad():
             pred = nll.argmax(dim=1)
             classes, counts = torch.unique(target, return_counts=True)
-            acc_per_class = {cls: (pred[torch.where(target == cls)] == target) for cls, n in zip(classes, counts)}
+            acc_per_class = {cls: (pred[torch.where(self.classes(target) == cls)] == target) for cls, n in zip(classes, counts)}
 
         tqdm_dict = {'val_loss': loss, 'batch_idx': batch_idx}
         log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
