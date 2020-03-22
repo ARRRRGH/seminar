@@ -228,10 +228,10 @@ class DecoderRNN(nn.Module):
         # output fully connected layer
         self.fc_out = nn.Linear(in_features=self.hidden_size, out_features=self.out_classes)
 
-    def forward(self, features, embedded):
+    def forward(self, embedded):
 
         # batch size
-        batch_size = features.size(0)
+        batch_size = embedded.size(0)
 
         # init the hidden and cell states to zeros
         hidden_state = torch.zeros((batch_size, self.hidden_size)).to(DEVICE)
@@ -241,13 +241,7 @@ class DecoderRNN(nn.Module):
         # pass the caption word by word
         for t in range(embedded.size(1)):
 
-            # for the first time step the input is the feature vector
-            if t == 0:
-                hidden_state, cell_state = self.lstm_cell(features, (hidden_state, cell_state))
-
-            # for the 2nd+ time step, using teacher forcer
-            else:
-                hidden_state, cell_state = self.lstm_cell(embedded[:, t, :], (hidden_state, cell_state))
+            hidden_state, cell_state = self.lstm_cell(embedded[:, t, :], (hidden_state, cell_state))
 
             # output of the attention mechanism
             out = self.fc_out(hidden_state)
