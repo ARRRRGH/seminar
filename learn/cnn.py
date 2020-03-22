@@ -121,10 +121,10 @@ class LSTM(_LSTM):
 
 class LSTM2(_LSTM):
 
-    def __init__(self, input_shape, hidden_size, embed_size, in_channels, reduce_kernel_size=3, *args, **kwargs):
+    def __init__(self, channels, input_shape, hidden_size, embed_size, in_channels, reduce_kernel_size=3, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.encoder = EncoderCNN(embed_size=embed_size, in_channels=in_channels, shape=input_shape)
+        self.encoder = EncoderCNN(channels, embed_size=embed_size, in_channels=in_channels, shape=input_shape)
         self.decoder = DecoderRNN(embed_size=embed_size, hidden_size=hidden_size)
 
         self.reduce = nn.Conv1d(in_channels=self.seq_len, out_channels=1, kernel_size=reduce_kernel_size,
@@ -171,7 +171,7 @@ class LSTM2(_LSTM):
 
 
 class EncoderCNN(nn.Module):
-    def __init__(self, embed_size=1024, in_channels=8, shape=None):
+    def __init__(self, channels, embed_size=1024, in_channels=8, shape=None, drop_rate=0.5):
         super().__init__()
 
         # cast to right dimensions
@@ -188,24 +188,23 @@ class EncoderCNN(nn.Module):
         # replace the classifier with a fully connected embedding layer
         # self.densenet.classifier = nn.Linear(in_features=1024, out_features=1024)
 
-        self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=in_channels * 2, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(in_channels=in_channels * 2, out_channels=in_channels * 4, kernel_size=3, padding=1)
-        self.conv3 = nn.Conv2d(in_channels=in_channels * 4, out_channels=in_channels * 16, kernel_size=3, padding=1)
-        self.conv4 = nn.Conv2d(in_channels=in_channels * 16, out_channels=in_channels * 32, kernel_size=3, padding=1)
-        self.conv5 = nn.Conv2d(in_channels=in_channels * 32, out_channels=in_channels * 64, kernel_size=3, padding=1)
+        self.convs = []
+        self.bns = []
+        last_ncl = in_channels
+        for i, ncl in enumerate(channels):
+            self.convs.append(nn.Conv2d(in_channels=last_ncl,
+                                        out_channels=ncl, kernel_size=3, padding=1))
 
-        self.bn1 = nn.BatchNorm2d(num_features=in_channels * 2)
-        self.bn2 = nn.BatchNorm2d(num_features=in_channels * 4)
-        self.bn3 = nn.BatchNorm2d(num_features=in_channels * 16)
-        self.bn4 = nn.BatchNorm2d(num_features=in_channels * 32)
-        self.bn5 = nn.BatchNorm2d(num_features=in_channels * 64)
+            self.bn.append(nn.BatchNorm2d(num_features=in_channels * 2))
+
+            last_ncl = ncl
 
         # add another fully connected layer
-        self.embed = nn.Linear(in_features=shape[1] * shape[2] * in_channels * 64, out_features=embed_size)
+        self.embed = nn.Linear(in_features=shape[1] * shape[2] * channels[-1], out_features=embed_size)
         # self.embed = nn.Linear(in_features=1000, out_features=embed_size)
 
         # dropout layer
-        self.dropout = nn.Dropout2d(p=0.5)
+        self.dropout = nn.Dropout2d(p=drop_rate)
 
         # activation layers
         self.prelu = nn.PReLU()
@@ -217,14 +216,12 @@ class EncoderCNN(nn.Module):
         # get the embeddings from the densenet
         # outs = self.dropout(self.prelu(self.densenet(preproc_images)))
 
-        outs = torch.relu(self.bn1(self.conv1(images)))
-        outs = torch.relu(self.bn2(self.conv2(outs)))
-        outs = torch.relu(self.bn3(self.conv3(outs)))
-        outs = torch.relu(self.bn4(self.conv4(outs)))
-        outs = self.dropout(torch.relu(self.bn5(self.conv5(outs))))
+        outs = images
+        for bn, conv in zip(self.bns, self.convs):
+            outs = torch.relu(bn(conv(images)))
 
         # outs = self.pre1(outs.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
-        outs = outs.flatten(1)
+        outs = self.dropout(outs).flatten(1)
 
         # pass through the fully connected
         embeddings = self.embed(outs)
@@ -233,7 +230,7 @@ class EncoderCNN(nn.Module):
 
 
 class DecoderRNN(nn.Module):
-    def __init__(self, embed_size, hidden_size):
+    def __init__(self, embed_size, hidden_size, drop_rate=0.5):
         super().__init__()
 
         # define the properties
@@ -246,7 +243,7 @@ class DecoderRNN(nn.Module):
         # output fully connected layer
         self.fc_out = nn.Linear(in_features=self.hidden_size, out_features=self.hidden_size)
 
-        self.dropout = nn.Dropout(p=0.7)
+        self.dropout = nn.Dropout(p=drop_rate)
 
     def forward(self, embedded):
 
