@@ -176,7 +176,7 @@ class EncoderCNN(nn.Module):
 
         # cast to right dimensions
         self.pre1 = nn.Linear(in_features=in_channels, out_features=in_channels // 2)
-        self.pre2 = nn.Linear(in_features=in_channels // 2, out_features=in_channels)
+        self.pre2 = nn.Linear(in_features=in_channels // 2, out_features=3)
 
         self.upsample = nn.Upsample(scale_factor=50, mode='bilinear', align_corners=True)
 
