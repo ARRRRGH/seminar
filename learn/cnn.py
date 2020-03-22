@@ -189,23 +189,23 @@ class EncoderCNN(nn.Module):
         # self.densenet.classifier = nn.Linear(in_features=1024, out_features=1024)
 
         self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=in_channels * 2, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(in_channels=in_channels * 2, out_channels=in_channels * 3, kernel_size=3, padding=1)
-        self.conv3 = nn.Conv2d(in_channels=in_channels * 3, out_channels=in_channels * 4, kernel_size=3, padding=1)
-        self.conv4 = nn.Conv2d(in_channels=in_channels * 4, out_channels=in_channels * 5, kernel_size=3, padding=1)
-        self.conv5 = nn.Conv2d(in_channels=in_channels * 5, out_channels=in_channels * 6, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=in_channels * 2, out_channels=in_channels * 4, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(in_channels=in_channels * 4, out_channels=in_channels * 16, kernel_size=3, padding=1)
+        self.conv4 = nn.Conv2d(in_channels=in_channels * 16, out_channels=in_channels * 32, kernel_size=3, padding=1)
+        self.conv5 = nn.Conv2d(in_channels=in_channels * 32, out_channels=in_channels * 64, kernel_size=3, padding=1)
 
         self.bn1 = nn.BatchNorm2d(num_features=in_channels * 2)
-        self.bn2 = nn.BatchNorm2d(num_features=in_channels * 3)
-        self.bn3 = nn.BatchNorm2d(num_features=in_channels * 4)
-        self.bn4 = nn.BatchNorm2d(num_features=in_channels * 5)
-        self.bn5 = nn.BatchNorm2d(num_features=in_channels * 6)
+        self.bn2 = nn.BatchNorm2d(num_features=in_channels * 4)
+        self.bn3 = nn.BatchNorm2d(num_features=in_channels * 16)
+        self.bn4 = nn.BatchNorm2d(num_features=in_channels * 32)
+        self.bn5 = nn.BatchNorm2d(num_features=in_channels * 64)
 
         # add another fully connected layer
-        self.embed = nn.Linear(in_features=shape[1] * shape[2] * in_channels * 6, out_features=embed_size)
+        self.embed = nn.Linear(in_features=shape[1] * shape[2] * in_channels * 64, out_features=embed_size)
         # self.embed = nn.Linear(in_features=1000, out_features=embed_size)
 
         # dropout layer
-        self.dropout = nn.Dropout(p=0.7)
+        self.dropout = nn.Dropout2d(p=0.5)
 
         # activation layers
         self.prelu = nn.PReLU()
@@ -221,13 +221,13 @@ class EncoderCNN(nn.Module):
         outs = torch.relu(self.bn2(self.conv2(outs)))
         outs = torch.relu(self.bn3(self.conv3(outs)))
         outs = torch.relu(self.bn4(self.conv4(outs)))
-        outs = torch.relu(self.bn5(self.conv5(outs)))
+        outs = self.dropout(torch.relu(self.bn5(self.conv5(outs))))
 
         # outs = self.pre1(outs.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
         outs = outs.flatten(1)
 
         # pass through the fully connected
-        embeddings = self.embed(self.dropout(outs))
+        embeddings = self.embed(outs)
 
         return embeddings
 
