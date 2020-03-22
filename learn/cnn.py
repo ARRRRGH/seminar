@@ -196,7 +196,7 @@ class EncoderCNN(nn.Module):
 
     def forward(self, images):
 
-        preproc_images = self.pre2(torch.sigmoid(self.pre1(images.permute(0, 1, 3, 4, 2)))).permute(0, 1, 4, 2, 3)
+        preproc_images = self.pre2(torch.sigmoid(self.pre1(images.permute(0, 2, 3, 1)))).permute(0, 3, 1, 2)
 
         # get the embeddings from the densenet
         densenet_outputs = self.dropout(self.prelu(self.densenet(preproc_images)))
