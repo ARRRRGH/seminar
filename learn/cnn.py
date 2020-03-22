@@ -201,7 +201,7 @@ class EncoderCNN(nn.Module):
         # self.bn5 = nn.BatchNorm2d(num_features=in_channels * 6)
 
         # add another fully connected layer
-        self.embed = nn.Linear(in_features=shape[1] * shape[2] * in_channels * 6, out_features=embed_size)
+        self.embed = nn.Linear(in_features=1024, out_features=embed_size)
 
         # dropout layer
         self.dropout = nn.Dropout(p=0.7)
@@ -226,7 +226,7 @@ class EncoderCNN(nn.Module):
         outs = outs.flatten(1)
 
         # pass through the fully connected
-        embeddings = self.dropout(self.embed(outs))
+        embeddings = self.embed(self.dropout(outs))
 
         return embeddings
 
