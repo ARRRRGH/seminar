@@ -175,33 +175,34 @@ class EncoderCNN(nn.Module):
         super().__init__()
 
         # cast to right dimensions
-        self.pre1 = nn.Linear(in_features=in_channels, out_features=in_channels // 2)
-        self.pre2 = nn.Linear(in_features=in_channels // 2, out_features=3)
+        # self.pre1 = nn.Linear(in_features=in_channels, out_features=in_channels // 2)
+        # self.pre2 = nn.Linear(in_features=in_channels // 2, out_features=3)
 
-        self.upsample = nn.Upsample(scale_factor=50, mode='bilinear', align_corners=True)
+        # self.upsample = nn.Upsample(scale_factor=50, mode='bilinear', align_corners=True)
 
         # self.convtr1 = nn.ConvTranspose2d(in_channels=in_channels, out_channels=in_channels*6)
 
         # get the pretrained densenet model
-        self.densenet = models.densenet121(pretrained=True)
+        # self.densenet = models.densenet121(pretrained=True)
 
         # replace the classifier with a fully connected embedding layer
         # self.densenet.classifier = nn.Linear(in_features=1024, out_features=1024)
 
-        # self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=in_channels * 2, kernel_size=3, padding=1)
-        # self.conv2 = nn.Conv2d(in_channels=in_channels * 2, out_channels=in_channels * 3, kernel_size=3, padding=1)
-        # self.conv3 = nn.Conv2d(in_channels=in_channels * 3, out_channels=in_channels * 4, kernel_size=3, padding=1)
-        # self.conv4 = nn.Conv2d(in_channels=in_channels * 4, out_channels=in_channels * 5, kernel_size=3, padding=1)
-        # self.conv5 = nn.Conv2d(in_channels=in_channels * 5, out_channels=in_channels * 6, kernel_size=3, padding=1)
-        #
-        # self.bn1 = nn.BatchNorm2d(num_features=in_channels * 2)
-        # self.bn2 = nn.BatchNorm2d(num_features=in_channels * 3)
-        # self.bn3 = nn.BatchNorm2d(num_features=in_channels * 4)
-        # self.bn4 = nn.BatchNorm2d(num_features=in_channels * 5)
-        # self.bn5 = nn.BatchNorm2d(num_features=in_channels * 6)
+        self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=in_channels * 2, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=in_channels * 2, out_channels=in_channels * 3, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(in_channels=in_channels * 3, out_channels=in_channels * 4, kernel_size=3, padding=1)
+        self.conv4 = nn.Conv2d(in_channels=in_channels * 4, out_channels=in_channels * 5, kernel_size=3, padding=1)
+        self.conv5 = nn.Conv2d(in_channels=in_channels * 5, out_channels=in_channels * 6, kernel_size=3, padding=1)
+
+        self.bn1 = nn.BatchNorm2d(num_features=in_channels * 2)
+        self.bn2 = nn.BatchNorm2d(num_features=in_channels * 3)
+        self.bn3 = nn.BatchNorm2d(num_features=in_channels * 4)
+        self.bn4 = nn.BatchNorm2d(num_features=in_channels * 5)
+        self.bn5 = nn.BatchNorm2d(num_features=in_channels * 6)
 
         # add another fully connected layer
-        self.embed = nn.Linear(in_features=1000, out_features=embed_size)
+        self.embed = nn.Linear(in_features=shape[1] * shape[2] * in_channels * 6, out_features=embed_size)
+        # self.embed = nn.Linear(in_features=1000, out_features=embed_size)
 
         # dropout layer
         self.dropout = nn.Dropout(p=0.7)
@@ -214,13 +215,13 @@ class EncoderCNN(nn.Module):
         preproc_images = self.upsample(self.pre2(torch.sigmoid(self.pre1(
                                         images.permute(0, 2, 3, 1)))).permute(0, 3, 1, 2))
         # get the embeddings from the densenet
-        outs = self.dropout(self.prelu(self.densenet(preproc_images)))
+        # outs = self.dropout(self.prelu(self.densenet(preproc_images)))
 
-        # outs = torch.relu(self.bn1(self.conv1(images)))
-        # outs = torch.relu(self.bn2(self.conv2(outs)))
-        # outs = torch.relu(self.bn3(self.conv3(outs)))
-        # outs = torch.relu(self.bn4(self.conv4(outs)))
-        # outs = torch.relu(self.bn5(self.conv5(outs)))
+        outs = torch.relu(self.bn1(self.conv1(images)))
+        outs = torch.relu(self.bn2(self.conv2(outs)))
+        outs = torch.relu(self.bn3(self.conv3(outs)))
+        outs = torch.relu(self.bn4(self.conv4(outs)))
+        outs = torch.relu(self.bn5(self.conv5(outs)))
 
         # outs = self.pre1(outs.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
         outs = outs.flatten(1)
