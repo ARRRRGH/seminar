@@ -200,33 +200,33 @@ class LSTM2(_LSTM):
 
         tp_per_cls = {'tp' + str(cls_out): torch.stack([x['tp_per_cls'][cls_in] for x in outputs
                                                         if cls_in in x['tp_per_cls']]).sum()
-                      for cls_out, cls_in in self._classes.items()}
+                      for cls_out, cls_in in list(self._classes.items())}
 
         fp_per_cls = {'fp' + str(cls_out): torch.stack([x['fp_per_cls'][cls_in] for x in outputs
                                                         if cls_in in x['fp_per_cls']]).mean()
-                      for cls_out, cls_in in self._classes.items()}
+                      for cls_out, cls_in in list(self._classes.items())}
 
         fn_per_cls = {'fn' + str(cls_out): torch.stack([x['fn_per_cls'][cls_in] for x in outputs
                                                         if cls_in in x['fn_per_cls']]).mean()
-                      for cls_out, cls_in in self._classes.items()}
+                      for cls_out, cls_in in list(self._classes.items())}
 
         # tn_per_cls = {'tn' + str(cls_out): torch.stack([x['tn_per_cls'][cls_in] for x in outputs
         #                                                 if cls_in in x['tn_per_cls']]).mean()
         #               for cls_out, cls_in in self._classes.items()}
 
         recall_per_cls = {'recall_' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fn_per_cls[cls_in])
-                          for cls_out, cls_in in self._classes.items()}
+                          for cls_out, cls_in in list(self._classes.items())}
 
         precision_per_cls = {'precision_' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fp_per_cls[cls_in])
-                             for cls_out, cls_in in self._classes.items()}
+                             for cls_out, cls_in in list(self._classes.items())}
 
         f1_per_cls = {'f1_' + str(cls_out): 2 * precision_per_cls[cls_in] * recall_per_cls[cls_in] /
                                             (precision_per_cls[cls_in] + recall_per_cls[cls_in])
-                      for cls_out, cls_in in self._classes.items()}
+                      for cls_out, cls_in in list(self._classes.items())}
 
         threat_sc_per_cls = {'threat_sc_' + str(cls_out): tp_per_cls[cls_in] /
                                                    (tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in])
-                             for cls_out, cls_in in self._classes.items()}
+                             for cls_out, cls_in in list(self._classes.items())}
 
         mean_recall = torch.stack(list(recall_per_cls.values())).mean()
         mean_precision = torch.stack(list(precision_per_cls.values())).mean()
