@@ -130,6 +130,8 @@ class LSTM2(_LSTM):
         self.reduce = nn.Conv1d(in_channels=self.seq_len, out_channels=1, kernel_size=reduce_kernel_size)
         self.linear_head = nn.Linear(in_features=hidden_size, out_features=len(self._classes))
 
+        self.loss = nn.CrossEntropyLoss()
+
     def forward(self, x):
         encs = []
         for t in range(x.shape[1]):
