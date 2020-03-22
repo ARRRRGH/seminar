@@ -139,7 +139,7 @@ class LSTM2(_LSTM):
 
         out_hidden_states = self.decoder(torch.stack(encs, dim=1))
         # return self.linear_head(torch.max(out_hidden_states, dim=1)[0])
-        return self.linear_head(self.reduce(out_hidden_states).squeeze(1))
+        return self.linear_head(torch.sigmoid(self.reduce(out_hidden_states).squeeze(1)))
 
     def training_step(self, batch, batch_idx):
         data, target = batch
@@ -214,19 +214,18 @@ class EncoderCNN(nn.Module):
 
 
 class DecoderRNN(nn.Module):
-    def __init__(self, embed_size, hidden_size, out_classes=10):
+    def __init__(self, embed_size, hidden_size):
         super().__init__()
 
         # define the properties
         self.embed_size = embed_size
         self.hidden_size = hidden_size
-        self.out_classes = out_classes
 
         # lstm cell
         self.lstm_cell = nn.LSTMCell(input_size=self.embed_size, hidden_size=self.hidden_size)
 
         # output fully connected layer
-        self.fc_out = nn.Linear(in_features=self.hidden_size, out_features=self.out_classes)
+        self.fc_out = nn.Linear(in_features=self.hidden_size, out_features=self.hidden_size)
 
     def forward(self, embedded):
 
