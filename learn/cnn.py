@@ -127,7 +127,8 @@ class LSTM2(_LSTM):
         self.encoder = EncoderCNN(embed_size=embed_size, in_channels=in_channels, shape=input_shape)
         self.decoder = DecoderRNN(embed_size=embed_size, hidden_size=hidden_size)
 
-        self.reduce = nn.Conv1d(in_channels=self.seq_len, out_channels=1, kernel_size=reduce_kernel_size)
+        self.reduce = nn.Conv1d(in_channels=self.seq_len, out_channels=1, kernel_size=reduce_kernel_size,
+                                padding=reduce_kernel_size // 2)
         self.linear_head = nn.Linear(in_features=hidden_size, out_features=len(self._classes))
 
         self.loss = nn.CrossEntropyLoss()
