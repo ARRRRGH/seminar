@@ -137,9 +137,8 @@ class LSTM2(_LSTM):
         encs = []
         for t in range(x.shape[1]):
             encs.append(self.encoder(x[:, t, :, :, :]))
-
         out_hidden_states = self.decoder(torch.stack(encs, dim=1))
-        # return self.linear_head(torch.max(out_hidden_states, dim=1)[0])
+
         return self.linear_head(torch.sigmoid(self.reduce(out_hidden_states).squeeze(1)))
 
     def training_step(self, batch, batch_idx):
@@ -166,7 +165,8 @@ class LSTM2(_LSTM):
 
     def validation_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        tensorboard_logs = {'val_loss': avg_loss}
+        std_loss = torch.stack([x['val_loss'] for x in outputs]).std()
+        tensorboard_logs = {'val_loss': avg_loss, 'std_loss': std_loss}
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
 
@@ -174,40 +174,53 @@ class EncoderCNN(nn.Module):
     def __init__(self, embed_size=1024, in_channels=8, shape=None):
         super().__init__()
 
-        assert in_channels > 6
-
-        # cast to right dimensions
-        self.pre1 = nn.Linear(in_features=in_channels, out_features=in_channels//2)
-        self.pre2 = nn.Linear(in_features=in_channels//2, out_features=3)
-
         # get the pretrained densenet model
-        #self.densenet = models.densenet121(pretrained=True)
+        # self.densenet = models.densenet121(pretrained=True)
 
         # replace the classifier with a fully connected embedding layer
-        #self.densenet.classifier = nn.Linear(in_features=1024, out_features=1024)
+        # self.densenet.classifier = nn.Linear(in_features=1024, out_features=1024)
 
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=3, padding=1)
-        self.conv3 = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=3, padding=1)
+        self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=in_channels * 2, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=in_channels * 2, out_channels=in_channels * 3, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(in_channels=in_channels * 3, out_channels=in_channels * 4, kernel_size=3, padding=1)
+        self.conv4 = nn.Conv2d(in_channels=in_channels * 4, out_channels=in_channels * 5, kernel_size=3, padding=1)
+        self.conv5 = nn.Conv2d(in_channels=in_channels * 5, out_channels=in_channels * 6, kernel_size=3, padding=1)
+
+        self.bn1 = nn.BatchNorm2d(num_features=in_channels * 2)
+        self.bn2 = nn.BatchNorm2d(num_features=in_channels * 3)
+        self.bn3 = nn.BatchNorm2d(num_features=in_channels * 4)
+        self.bn4 = nn.BatchNorm2d(num_features=in_channels * 5)
+        self.bn5 = nn.BatchNorm2d(num_features=in_channels * 6)
+
+        # cast to right dimensions
+        self.pre1 = nn.Linear(in_features=in_channels * 6, out_features=in_channels * 6)
+        # self.pre2 = nn.Linear(in_features=in_channels * 4, out_features=3)
 
         # add another fully connected layer
-        self.embed = nn.Linear(in_features=shape[1] * shape[2] * 3, out_features=embed_size)
+        self.embed = nn.Linear(in_features=shape[1] * shape[2] * in_channels * 4, out_features=embed_size)
 
         # dropout layer
         self.dropout = nn.Dropout(p=0.5)
 
         # activation layers
-        self.prelu = nn.PReLU()
+        # self.prelu = nn.PReLU()
 
     def forward(self, images):
 
-        preproc_images = self.pre2(torch.sigmoid(self.pre1(images.permute(0, 2, 3, 1)))).permute(0, 3, 1, 2)
+        # preproc_images = self.pre2(torch.sigmoid(self.pre1(images.permute(0, 2, 3, 1)))).permute(0, 3, 1, 2)
 
         # get the embeddings from the densenet
         # outs = self.dropout(self.prelu(self.densenet(preproc_images)))
 
-        outs = self.prelu(self.conv3(torch.sigmoid(self.conv2(torch.sigmoid(self.conv1(preproc_images))))))
-        outs = self.dropout(outs.flatten(1))
+        outs = torch.relu(self.bn1(self.conv1(images)))
+        outs = torch.relu(self.bn2(self.conv2(outs)))
+        outs = torch.relu(self.bn3(self.conv3(outs)))
+        outs = torch.relu(self.bn4(self.conv4(outs)))
+        outs = torch.relu(self.bn5(self.conv5(outs)))
+
+        # outs = self.pre1(outs.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+        outs = outs.flatten(1)
+
         # pass through the fully connected
         embeddings = self.embed(outs)
 
