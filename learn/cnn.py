@@ -180,10 +180,14 @@ class EncoderCNN(nn.Module):
         self.pre2 = nn.Linear(in_features=in_channels//2, out_features=3)
 
         # get the pretrained densenet model
-        self.densenet = models.densenet121(pretrained=True)
+        #self.densenet = models.densenet121(pretrained=True)
 
         # replace the classifier with a fully connected embedding layer
-        self.densenet.classifier = nn.Linear(in_features=1024, out_features=1024)
+        #self.densenet.classifier = nn.Linear(in_features=1024, out_features=1024)
+
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=3)
+        self.conv2 = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=3)
+        self.conv3 = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=3)
 
         # add another fully connected layer
         self.embed = nn.Linear(in_features=1024, out_features=embed_size)
@@ -199,10 +203,12 @@ class EncoderCNN(nn.Module):
         preproc_images = self.pre2(torch.sigmoid(self.pre1(images.permute(0, 2, 3, 1)))).permute(0, 3, 1, 2)
 
         # get the embeddings from the densenet
-        densenet_outputs = self.dropout(self.prelu(self.densenet(preproc_images)))
+        # outs = self.dropout(self.prelu(self.densenet(preproc_images)))
 
+        outs = self.prelu(self.conv3(self.sigmoid(self.conv2(self.sigmoid(self.conv1(preproc_images))))))
+        outs = self.dropout(outs)
         # pass through the fully connected
-        embeddings = self.embed(densenet_outputs)
+        embeddings = self.embed(outs)
 
         return embeddings
 
