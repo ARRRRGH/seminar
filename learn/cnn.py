@@ -133,7 +133,7 @@ class LSTM2(_LSTM):
                                 padding=reduce_kernel_size // 2)
         self.linear_head = nn.Linear(in_features=hidden_size, out_features=len(self._classes))
 
-        # self.loss = nn.CrossEntropyLoss()
+        self.loss = nn.CrossEntropyLoss()
         self.logsoft = nn.LogSoftmax()
 
     def forward(self, x):
