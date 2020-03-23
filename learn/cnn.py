@@ -160,7 +160,7 @@ class LSTM2(_LSTM):
         target = self.classes(target)
 
         # loss = self.loss(input=self.forward(data), target=self.classes(target))
-        nll = - self.logsoft(self.forward(data), dim=1)
+        nll = - self.logsoft(self.forward(data))
         loss = nll[torch.arange(len(target)), target]
         # calc contingency table
         with torch.no_grad():
@@ -241,11 +241,13 @@ class LSTM2(_LSTM):
     def _sum_metric_per_cls(self, name_in, outputs):
         ret = {}
         for cls_out, cls_in in self._classes.items():
-            try:
-                sum = torch.cat([x[name_in][cls_in] for x in outputs
-                             if cls_in in x['tp_per_cls']]).sum()
+            lis = [x[name_in][cls_in] for x in outputs
+                   if cls_in in x['tp_per_cls']]
 
-            except RuntimeError:  # catch possibility of no values
+        if len(lis) > 0:
+                sum = torch.cat(lis).sum()
+
+        else:  # catch possibility of no values
                 sum = torch.Tensor([0])
 
             ret[cls_in] = sum
