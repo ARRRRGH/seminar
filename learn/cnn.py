@@ -134,7 +134,7 @@ class LSTM2(_LSTM):
         self.linear_head = nn.Linear(in_features=hidden_size, out_features=len(self._classes))
 
         self.loss = nn.CrossEntropyLoss()
-        self.logsoft = nn.LogSoftmax()
+        self.logsoft = nn.LogSoftmax(dim=1)
 
     def forward(self, x):
         encs = []
