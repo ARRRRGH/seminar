@@ -162,7 +162,6 @@ class LSTM2(_LSTM):
         # loss = self.loss(input=self.forward(data), target=self.classes(target))
         nll = - self.logsoft(self.forward(data))
         loss = nll[torch.arange(len(target)), target]
-
         # calc contingency table
         with torch.no_grad():
 
@@ -196,8 +195,8 @@ class LSTM2(_LSTM):
         return output
 
     def validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        std_loss = torch.stack([x['val_loss'] for x in outputs]).std()
+        avg_loss = torch.cat([x['val_loss'] for x in outputs]).mean()
+        std_loss = torch.cat([x['val_loss'] for x in outputs]).std()
 
         tp_per_cls = self._sum_metric_per_cls('tp_per_cls', outputs)
         fp_per_cls = self._sum_metric_per_cls('fp_per_cls', outputs)
@@ -241,7 +240,7 @@ class LSTM2(_LSTM):
         ret = {}
         for cls_out, cls_in in self._classes.items():
             try:
-                sum = torch.stack([x[name_in][cls_in] for x in outputs
+                sum = torch.cat([x[name_in][cls_in] for x in outputs
                              if cls_in in x['tp_per_cls']]).sum()
 
             except RuntimeError:  # catch possibility of no values
