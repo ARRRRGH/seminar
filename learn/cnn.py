@@ -160,7 +160,7 @@ class LSTM2(_LSTM):
         target = self.classes(target)
 
         # loss = self.loss(input=self.forward(data), target=self.classes(target))
-        nll = - self.logsoft(self.forward(data))
+        nll = - self.logsoft(self.forward(data), dim=1)
         loss = nll[torch.arange(len(target)), target]
 
         # calc contingency table
@@ -224,16 +224,18 @@ class LSTM2(_LSTM):
         mean_threat_sc = torch.stack(list(threat_sc_per_cls.values())).mean()
 
         tensorboard_logs = {'val_loss': avg_loss, 'std_loss': std_loss}
-        ret = {'val_loss': avg_loss, 'log': tensorboard_logs}
-        ret.update(recall_per_cls)
-        ret.update(precision_per_cls)
-        ret.update(f1_per_cls)
-        ret.update(threat_sc_per_cls)
+        
+        tensorboard_logs.update(recall_per_cls)
+        tensorboard_logs.update(precision_per_cls)
+        tensorboard_logs.update(f1_per_cls)
+        tensorboard_logs.update(threat_sc_per_cls)
 
-        ret['mean_recall'] = mean_recall
-        ret['mean_precision'] = mean_precision
-        ret['mean_f1'] = mean_f1
-        ret['mean_threat_sc'] = mean_threat_sc
+        tensorboard_logs['mean_recall'] = mean_recall
+        tensorboard_logs['mean_precision'] = mean_precision
+        tensorboard_logs['mean_f1'] = mean_f1
+        tensorboard_logs['mean_threat_sc'] = mean_threat_sc
+
+        ret = {'val_loss': avg_loss, 'log': tensorboard_logs}
 
         return ret
 
