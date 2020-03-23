@@ -187,6 +187,7 @@ class LSTM2(_LSTM):
 
         output = OrderedDict({'val_loss': loss})
         output.update(log)
+
         output.update({'tp_per_cls': tp_per_cls})
         output.update({'fn_per_cls': fn_per_cls})
         output.update({'fp_per_cls': fp_per_cls})
@@ -198,21 +199,10 @@ class LSTM2(_LSTM):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         std_loss = torch.stack([x['val_loss'] for x in outputs]).std()
 
-        tp_per_cls = {'tp' + str(cls_out): torch.stack([x['tp_per_cls'][cls_in] for x in outputs
-                                                        if cls_in in x['tp_per_cls']]).sum()
-                      for cls_out, cls_in in list(self._classes.items())}
-
-        fp_per_cls = {'fp' + str(cls_out): torch.stack([x['fp_per_cls'][cls_in] for x in outputs
-                                                        if cls_in in x['fp_per_cls']]).mean()
-                      for cls_out, cls_in in list(self._classes.items())}
-
-        fn_per_cls = {'fn' + str(cls_out): torch.stack([x['fn_per_cls'][cls_in] for x in outputs
-                                                        if cls_in in x['fn_per_cls']]).mean()
-                      for cls_out, cls_in in list(self._classes.items())}
-
-        # tn_per_cls = {'tn' + str(cls_out): torch.stack([x['tn_per_cls'][cls_in] for x in outputs
-        #                                                 if cls_in in x['tn_per_cls']]).mean()
-        #               for cls_out, cls_in in self._classes.items()}
+        tp_per_cls = self._sum_metric_per_cls('tp', 'tp_per_cls', outputs)
+        fp_per_cls = self._sum_metric_per_cls('fp', 'fp_per_cls', outputs)
+        fn_per_cls = self._sum_metric_per_cls('fn', 'fn_per_cls', outputs)
+        # tn_per_cls = self._sum_metric_per_cls('tn', 'tn_per_cls', outputs)
 
         recall_per_cls = {'recall_' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fn_per_cls[cls_in])
                           for cls_out, cls_in in list(self._classes.items())}
@@ -245,6 +235,19 @@ class LSTM2(_LSTM):
         ret['mean_f1'] = mean_f1
         ret['mean_threat_sc'] = mean_threat_sc
 
+        return ret
+
+    def _sum_metric_per_cls(self, name_out, name_in, outputs):
+        ret = {}
+        for cls_out, cls_in in self._classes.items():
+            try:
+                sum = torch.stack([x[name_in][cls_in] for x in outputs
+                             if cls_in in x['tp_per_cls']]).sum()
+
+            except RuntimeError:  # catch possibility of no values
+                sum = 0
+
+            ret[name_out + '_' + str(cls_out)] = sum
         return ret
 
 
