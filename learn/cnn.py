@@ -199,24 +199,24 @@ class LSTM2(_LSTM):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         std_loss = torch.stack([x['val_loss'] for x in outputs]).std()
 
-        tp_per_cls = self._sum_metric_per_cls('tp', 'tp_per_cls', outputs)
-        fp_per_cls = self._sum_metric_per_cls('fp', 'fp_per_cls', outputs)
-        fn_per_cls = self._sum_metric_per_cls('fn', 'fn_per_cls', outputs)
+        tp_per_cls = self._sum_metric_per_cls('tp_per_cls', outputs)
+        fp_per_cls = self._sum_metric_per_cls('fp_per_cls', outputs)
+        fn_per_cls = self._sum_metric_per_cls('fn_per_cls', outputs)
         # tn_per_cls = self._sum_metric_per_cls('tn', 'tn_per_cls', outputs)
 
         recall_per_cls = {'recall_' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fn_per_cls[cls_in])
-                          for cls_out, cls_in in list(self._classes.items())}
+                          for cls_out, cls_in in self._classes.items()}
 
         precision_per_cls = {'precision_' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fp_per_cls[cls_in])
-                             for cls_out, cls_in in list(self._classes.items())}
+                             for cls_out, cls_in in self._classes.items()}
 
         f1_per_cls = {'f1_' + str(cls_out): 2 * precision_per_cls[cls_in] * recall_per_cls[cls_in] /
                                             (precision_per_cls[cls_in] + recall_per_cls[cls_in])
-                      for cls_out, cls_in in list(self._classes.items())}
+                      for cls_out, cls_in in self._classes.items()}
 
         threat_sc_per_cls = {'threat_sc_' + str(cls_out): tp_per_cls[cls_in] /
                                                    (tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in])
-                             for cls_out, cls_in in list(self._classes.items())}
+                             for cls_out, cls_in in self._classes.items()}
 
         mean_recall = torch.stack(list(recall_per_cls.values())).mean()
         mean_precision = torch.stack(list(precision_per_cls.values())).mean()
@@ -237,7 +237,7 @@ class LSTM2(_LSTM):
 
         return ret
 
-    def _sum_metric_per_cls(self, name_out, name_in, outputs):
+    def _sum_metric_per_cls(self, name_in, outputs):
         ret = {}
         for cls_out, cls_in in self._classes.items():
             try:
@@ -247,7 +247,7 @@ class LSTM2(_LSTM):
             except RuntimeError:  # catch possibility of no values
                 sum = 0
 
-            ret[name_out + '_' + str(cls_out)] = sum
+            ret[cls_in] = sum
         return ret
 
 
