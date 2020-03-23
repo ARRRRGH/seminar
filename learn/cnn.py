@@ -218,10 +218,10 @@ class LSTM2(_LSTM):
                                                    (tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] + 1e-7)
                              for cls_out, cls_in in self._classes.items()}
 
-        mean_recall = torch.stack(recall_per_cls.values()).mean()
-        mean_precision = torch.stack(precision_per_cls.values()).mean()
-        mean_f1 = torch.stack(f1_per_cls.values()).mean()
-        mean_threat_sc = torch.stack(threat_sc_per_cls.values()).mean()
+        mean_recall = torch.stack(list(recall_per_cls.values())).mean()
+        mean_precision = torch.stack(list(precision_per_cls.values())).mean()
+        mean_f1 = torch.stack(list(f1_per_cls.values())).mean()
+        mean_threat_sc = torch.stack(list(threat_sc_per_cls.values())).mean()
 
         tensorboard_logs = {'val_loss': avg_loss, 'std_loss': std_loss}
         ret = {'val_loss': avg_loss, 'log': tensorboard_logs}
