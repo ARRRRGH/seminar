@@ -161,12 +161,12 @@ class LSTM2(_LSTM):
 
         # loss = self.loss(input=self.forward(data), target=self.classes(target))
         nll = - self.logsoft(self.forward(data))
-        loss = nll[:, target]
+        loss = nll[torch.arange(len(target)), target]
 
         # calc contingency table
         with torch.no_grad():
 
-            pred = nll.argmax(dim=1)
+            pred = nll.argmin(dim=1)
             classes, counts = torch.unique(target, return_counts=True)
 
             tp_per_cls = {}
