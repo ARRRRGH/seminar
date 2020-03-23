@@ -192,8 +192,6 @@ class LSTM2(_LSTM):
         output.update({'fp_per_cls': fp_per_cls})
         output.update({'tn_per_cls': tn_per_cls})
 
-        # print('output', output)
-
         return output
 
     def validation_end(self, outputs):
@@ -204,9 +202,6 @@ class LSTM2(_LSTM):
         fp_per_cls = self._sum_metric_per_cls('fp_per_cls', outputs)
         fn_per_cls = self._sum_metric_per_cls('fn_per_cls', outputs)
         # tn_per_cls = self._sum_metric_per_cls('tn', 'tn_per_cls', outputs)
-
-
-        # print(tp_per_cls, fp_per_cls, fn_per_cls)
 
         recall_per_cls = {'recall/' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fn_per_cls[cls_in] + 1e-7)
                           for cls_out, cls_in in self._classes.items()}
@@ -248,7 +243,6 @@ class LSTM2(_LSTM):
         for cls_out, cls_in in self._classes.items():
             lis = [x[name_in][cls_in] for x in outputs
                    if cls_in in x[name_in]]
-            print(np.sum(lis, dtype=np.int16))
             ret[cls_in] = np.sum(lis, dtype=np.int16)
         return ret
 
