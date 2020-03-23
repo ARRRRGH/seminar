@@ -166,7 +166,7 @@ class LSTM2(_LSTM):
         with torch.no_grad():
 
             pred = nll.argmin(dim=1)
-            classes, counts = np.unique(target, return_counts=True)
+            classes, counts = np.unique(pred, return_counts=True)
 
             tp_per_cls = {}
             fp_per_cls = {}
@@ -174,12 +174,12 @@ class LSTM2(_LSTM):
             tn_per_cls = {}
             for cls, pred_p_cls in zip(classes, counts):
                 inds = torch.where(target == cls)[0]
-
                 p_cls = len(inds)
+                
                 tp_per_cls[cls] = (pred[inds] == target[inds]).sum().item()
-                fp_per_cls[cls] = (pred_p_cls - tp_per_cls[cls])
-                fn_per_cls[cls] = (p_cls - tp_per_cls[cls])
-                tn_per_cls[cls] = (target.shape[0] - p_cls - fn_per_cls[cls])
+                fp_per_cls[cls] = pred_p_cls - tp_per_cls[cls]
+                fn_per_cls[cls] = p_cls - tp_per_cls[cls]
+                tn_per_cls[cls] = target.shape[0] - p_cls - fn_per_cls[cls]
 
         tqdm_dict = {'val_loss': loss, 'batch_idx': batch_idx}
         log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
@@ -210,7 +210,7 @@ class LSTM2(_LSTM):
                              for cls_out, cls_in in self._classes.items()}
 
         f1_per_cls = {'f1/' + str(cls_out): 2 * tp_per_cls[cls_in] /
-                                            (2 * tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] + 1e-7)
+                                           (2 * tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] + 1e-7)
                       for cls_out, cls_in in self._classes.items()}
 
         threat_sc_per_cls = {'threat_sc/' + str(cls_out): tp_per_cls[cls_in] /
@@ -245,6 +245,48 @@ class LSTM2(_LSTM):
                    if cls_in in x[name_in]]
             ret[cls_in] = np.sum(lis, dtype=np.int16)
         return ret
+
+
+
+class EncoderDense(nn.Module):
+    def __init__(self, channels, embed_size=1024, in_channels=8, shape=None, drop_rate=0.5):
+        super().__init__()
+
+        # cast to right dimensions
+        # self.pre1 = nn.Linear(in_features=in_channels, out_features=in_channels // 2)
+        # self.pre2 = nn.Linear(in_features=in_channels // 2, out_features=3)
+
+        self.upsample = nn.Upsample(scale_factor=50, mode='bilinear', align_corners=True)
+        # self.convtr1 = nn.ConvTranspose2d(in_channels=in_channels, out_channels=in_channels*6)
+
+        # get the pretrained densenet model
+        self.densenet = models.densenet121(pretrained=True)
+
+        # replace the classifier with a fully connected embedding layer
+        # self.densenet.classifier = nn.Linear(in_features=1024, out_features=1024)
+
+        # add another fully connected layer
+        self.embed = nn.Linear(in_features=1000, out_features=embed_size)
+        # self.embed = nn.Linear(in_features=1000, out_features=embed_size)
+
+        # dropout layer
+        self.dropout = nn.Dropout2d(p=drop_rate)
+
+        # activation layers
+        # self.prelu = nn.PReLU()
+
+    def forward(self, images):
+
+        preproc_images = self.upsample(self.pre2(torch.sigmoid(self.pre1(
+                                       images.permute(0, 2, 3, 1)))).permute(0, 3, 1, 2))
+        # get the embeddings from the densenet
+        outs = self.dropout(self.prelu(self.densenet(preproc_images)))
+        outs = self.dropout(outs).flatten(1)
+
+        # pass through the fully connected
+        embeddings = self.embed(outs)
+
+        return embeddings
 
 
 class EncoderCNN(nn.Module):
