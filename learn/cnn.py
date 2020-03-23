@@ -166,7 +166,7 @@ class LSTM2(_LSTM):
         with torch.no_grad():
 
             pred = nll.argmin(dim=1)
-            classes, counts = torch.unique(target, return_counts=True)
+            classes, counts = np.unique(target, return_counts=True)
 
             tp_per_cls = {}
             fp_per_cls = {}
@@ -176,10 +176,10 @@ class LSTM2(_LSTM):
                 inds = torch.where(target == cls)[0]
 
                 p_cls = len(inds)
-                tp_per_cls[cls] = (pred[inds] == target[inds]).to(torch.int).sum()
-                fp_per_cls[cls] = pred_p_cls - tp_per_cls[cls]
-                fn_per_cls[cls] = p_cls - tp_per_cls[cls]
-                tn_per_cls[cls] = target.shape[0] - p_cls - fn_per_cls[cls]
+                tp_per_cls[cls] = (pred[inds] == target[inds]).sum().item()
+                fp_per_cls[cls] = (pred_p_cls - tp_per_cls[cls])
+                fn_per_cls[cls] = (p_cls - tp_per_cls[cls])
+                tn_per_cls[cls] = (target.shape[0] - p_cls - fn_per_cls[cls])
 
         tqdm_dict = {'val_loss': loss, 'batch_idx': batch_idx}
         log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
@@ -192,6 +192,8 @@ class LSTM2(_LSTM):
         output.update({'fp_per_cls': fp_per_cls})
         output.update({'tn_per_cls': tn_per_cls})
 
+        # print('output', output)
+
         return output
 
     def validation_end(self, outputs):
@@ -202,6 +204,9 @@ class LSTM2(_LSTM):
         fp_per_cls = self._sum_metric_per_cls('fp_per_cls', outputs)
         fn_per_cls = self._sum_metric_per_cls('fn_per_cls', outputs)
         # tn_per_cls = self._sum_metric_per_cls('tn', 'tn_per_cls', outputs)
+
+
+        # print(tp_per_cls, fp_per_cls, fn_per_cls)
 
         recall_per_cls = {'recall/' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fn_per_cls[cls_in] + 1e-7)
                           for cls_out, cls_in in self._classes.items()}
@@ -217,13 +222,13 @@ class LSTM2(_LSTM):
                                                    (tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] + 1e-7)
                              for cls_out, cls_in in self._classes.items()}
 
-        mean_recall = torch.stack(list(recall_per_cls.values())).mean()
-        mean_precision = torch.stack(list(precision_per_cls.values())).mean()
-        mean_f1 = torch.stack(list(f1_per_cls.values())).mean()
-        mean_threat_sc = torch.stack(list(threat_sc_per_cls.values())).mean()
+        mean_recall = np.array(list(recall_per_cls.values())).mean()
+        mean_precision = np.array(list(precision_per_cls.values())).mean()
+        mean_f1 = np.array(list(f1_per_cls.values())).mean()
+        mean_threat_sc = np.array(list(threat_sc_per_cls.values())).mean()
 
         tensorboard_logs = {'val_loss': avg_loss, 'std_loss': std_loss}
-        
+
         tensorboard_logs.update(recall_per_cls)
         tensorboard_logs.update(precision_per_cls)
         tensorboard_logs.update(f1_per_cls)
@@ -242,15 +247,9 @@ class LSTM2(_LSTM):
         ret = {}
         for cls_out, cls_in in self._classes.items():
             lis = [x[name_in][cls_in] for x in outputs
-                   if cls_in in x['tp_per_cls']]
-
-            if len(lis) > 0:
-                sum = torch.cat(lis).sum()
-
-            else:  # catch possibility of no values
-                sum = torch.Tensor([0])
-
-            ret[cls_in] = sum
+                   if cls_in in x[name_in]]
+            print(np.sum(lis, dtype=np.int16))
+            ret[cls_in] = np.sum(lis, dtype=np.int16)
         return ret
 
 
