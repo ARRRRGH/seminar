@@ -244,10 +244,10 @@ class LSTM2(_LSTM):
             lis = [x[name_in][cls_in] for x in outputs
                    if cls_in in x['tp_per_cls']]
 
-        if len(lis) > 0:
+            if len(lis) > 0:
                 sum = torch.cat(lis).sum()
 
-        else:  # catch possibility of no values
+            else:  # catch possibility of no values
                 sum = torch.Tensor([0])
 
             ret[cls_in] = sum
