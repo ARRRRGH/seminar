@@ -203,17 +203,17 @@ class LSTM2(_LSTM):
         fn_per_cls = self._sum_metric_per_cls('fn_per_cls', outputs)
         # tn_per_cls = self._sum_metric_per_cls('tn', 'tn_per_cls', outputs)
 
-        recall_per_cls = {'recall_' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fn_per_cls[cls_in] + 1e-7)
+        recall_per_cls = {'recall/' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fn_per_cls[cls_in] + 1e-7)
                           for cls_out, cls_in in self._classes.items()}
 
-        precision_per_cls = {'precision_' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fp_per_cls[cls_in] + 1e-7)
+        precision_per_cls = {'precision/' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fp_per_cls[cls_in] + 1e-7)
                              for cls_out, cls_in in self._classes.items()}
 
-        f1_per_cls = {'f1_' + str(cls_out): 2 * tp_per_cls[cls_in] /
+        f1_per_cls = {'f1/' + str(cls_out): 2 * tp_per_cls[cls_in] /
                                             (2 * tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] + 1e-7)
                       for cls_out, cls_in in self._classes.items()}
 
-        threat_sc_per_cls = {'threat_sc_' + str(cls_out): tp_per_cls[cls_in] /
+        threat_sc_per_cls = {'threat_sc/' + str(cls_out): tp_per_cls[cls_in] /
                                                    (tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] + 1e-7)
                              for cls_out, cls_in in self._classes.items()}
 
