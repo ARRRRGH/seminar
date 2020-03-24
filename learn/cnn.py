@@ -64,33 +64,6 @@ class _LSTM(ptl.LightningModule):
     def configure_optimizers(self):
         return Adam(self.parameters(), lr=self.lr)
 
-
-class LSTM(_LSTM):
-
-    def __init__(self, input_shape, in_channels, hidden_channels, kernel_size, num_layers, bias=True, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.lstm = ConvLSTM(in_channels, hidden_channels, kernel_size, num_layers,
-                             batch_first=True, bias=bias, return_all_layers=False)
-
-        padding = kernel_size[-1][0] // 2, kernel_size[-1][1] // 2
-        self.conv = nn.Conv2d(in_channels=hidden_channels[-1], kernel_size=kernel_size[-1], out_channels=1,
-                              padding=padding)
-
-        self.linear_head = nn.Linear(in_features=int(np.prod(input_shape)), out_features=len(self._classes))
-        self.loss = nn.CrossEntropyLoss()
-
-    def forward(self, x):
-        h, c = self.lstm(x)
-        h, c = h[0], c[0]
-
-        output = []
-        for t in range(h.shape[1]):
-            output.append(self.conv(h[:, t, :, :, :]).flatten(1))
-
-        output = torch.stack(output, dim=1)
-        return self.linear_head(torch.max(output, dim=1)[0])
-
     def validation_end(self, outputs):
         avg_loss = torch.cat([x['val_loss'] for x in outputs]).mean()
         std_loss = torch.cat([x['val_loss'] for x in outputs]).std()
@@ -169,58 +142,13 @@ class LSTM(_LSTM):
 
         return output
 
-    def training_step(self, batch, batch_idx):
-        data, target = batch
-        loss = self.loss(input=self.forward(data), target=self.classes(target))
-
-        tqdm_dict = {'training_loss': loss, 'batch_idx': batch_idx}
-        log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
-
-        output = OrderedDict({'loss': loss})
-        output.update(log)
-        return output
-
-    def validation_step(self, batch, batch_idx):
-        data, target = batch
-        loss = self.loss(input=self.forward(data), target=self.classes(target))
-
-        tqdm_dict = {'val_loss': loss, 'batch_idx': batch_idx}
-        log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
-
-        output = OrderedDict({'val_loss': loss})
-        output.update(log)
-        return output
-
-    def validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        tensorboard_logs = {'val_loss': avg_loss}
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
-
-
-class LSTM2(_LSTM):
-
-    def __init__(self, channels, input_shape, hidden_size, embed_size, in_channels, reduce_kernel_size=3,
-                 drop_rate=0.5, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.encoder = EncoderCNN(channels, embed_size=embed_size, in_channels=in_channels,
-                                  shape=input_shape, drop_rate=drop_rate)
-        self.decoder = DecoderRNN(embed_size=embed_size, hidden_size=hidden_size, drop_rate=drop_rate)
-
-        self.reduce = nn.Conv1d(in_channels=self.seq_len, out_channels=1, kernel_size=reduce_kernel_size,
-                                padding=reduce_kernel_size // 2)
-        self.linear_head = nn.Linear(in_features=hidden_size, out_features=len(self._classes))
-
-        self.loss = nn.CrossEntropyLoss()
-        self.logsoft = nn.LogSoftmax(dim=1)
-
-    def forward(self, x):
-        encs = []
-        for t in range(x.shape[1]):
-            encs.append(self.encoder(x[:, t, :, :, :]))
-        out_hidden_states = self.decoder(torch.stack(encs, dim=1))
-
-        return self.linear_head(torch.sigmoid(self.reduce(out_hidden_states).squeeze(1)))
+    def _sum_metric_per_cls(self, name_in, outputs):
+        ret = {}
+        for cls_out, cls_in in self._classes.items():
+            lis = [x[name_in][cls_in] for x in outputs
+                   if cls_in in x[name_in]]
+            ret[cls_in] = np.sum(lis, dtype=np.int16)
+        return ret
 
     def training_step(self, batch, batch_idx):
         data, target = batch
@@ -251,13 +179,58 @@ class LSTM2(_LSTM):
         output.update(self._binary_metrics(pred, target))
         return output
 
-    def _sum_metric_per_cls(self, name_in, outputs):
-        ret = {}
-        for cls_out, cls_in in self._classes.items():
-            lis = [x[name_in][cls_in] for x in outputs
-                   if cls_in in x[name_in]]
-            ret[cls_in] = np.sum(lis, dtype=np.int16)
-        return ret
+
+class LSTM(_LSTM):
+
+    def __init__(self, input_shape, in_channels, hidden_channels, kernel_size, num_layers, bias=True, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.lstm = ConvLSTM(in_channels, hidden_channels, kernel_size, num_layers,
+                             batch_first=True, bias=bias, return_all_layers=False)
+
+        padding = kernel_size[-1][0] // 2, kernel_size[-1][1] // 2
+        self.conv = nn.Conv2d(in_channels=hidden_channels[-1], kernel_size=kernel_size[-1], out_channels=1,
+                              padding=padding)
+
+        self.linear_head = nn.Linear(in_features=int(np.prod(input_shape)), out_features=len(self._classes))
+        self.loss = nn.CrossEntropyLoss()
+
+    def forward(self, x):
+        h, c = self.lstm(x)
+        h, c = h[0], c[0]
+
+        output = []
+        for t in range(h.shape[1]):
+            output.append(self.conv(h[:, t, :, :, :]).flatten(1))
+
+        output = torch.stack(output, dim=1)
+        return self.linear_head(torch.max(output, dim=1)[0])
+
+
+class LSTM2(_LSTM):
+
+    def __init__(self, channels, input_shape, hidden_size, embed_size, in_channels, reduce_kernel_size=3,
+                 drop_rate=0.5, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.encoder = EncoderCNN(channels, embed_size=embed_size, in_channels=in_channels,
+                                  shape=input_shape, drop_rate=drop_rate)
+        self.decoder = DecoderRNN(embed_size=embed_size, hidden_size=hidden_size, drop_rate=drop_rate)
+
+        self.reduce = nn.Conv1d(in_channels=self.seq_len, out_channels=1, kernel_size=reduce_kernel_size,
+                                padding=reduce_kernel_size // 2)
+        self.linear_head = nn.Linear(in_features=hidden_size, out_features=len(self._classes))
+
+        self.loss = nn.CrossEntropyLoss()
+        self.logsoft = nn.LogSoftmax(dim=1)
+
+    def forward(self, x):
+        encs = []
+        for t in range(x.shape[1]):
+            encs.append(self.encoder(x[:, t, :, :, :]))
+        out_hidden_states = self.decoder(torch.stack(encs, dim=1))
+
+        return self.linear_head(torch.sigmoid(self.reduce(out_hidden_states).squeeze(1)))
 
 
 class EncoderDense(nn.Module):
