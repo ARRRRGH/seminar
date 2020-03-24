@@ -91,6 +91,84 @@ class LSTM(_LSTM):
         output = torch.stack(output, dim=1)
         return self.linear_head(torch.max(output, dim=1)[0])
 
+    def validation_end(self, outputs):
+        avg_loss = torch.cat([x['val_loss'] for x in outputs]).mean()
+        std_loss = torch.cat([x['val_loss'] for x in outputs]).std()
+
+        tp_per_cls = self._sum_metric_per_cls('tp_per_cls', outputs)
+        fp_per_cls = self._sum_metric_per_cls('fp_per_cls', outputs)
+        fn_per_cls = self._sum_metric_per_cls('fn_per_cls', outputs)
+        # tn_per_cls = self._sum_metric_per_cls('tn', 'tn_per_cls', outputs)
+
+        recall_per_cls = {'recall/' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fn_per_cls[cls_in])
+        if tp_per_cls[cls_in] + fn_per_cls[cls_in] != 0
+        else np.nan
+                          for cls_out, cls_in in self._classes.items()}
+
+        precision_per_cls = {'precision/' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fp_per_cls[cls_in])
+        if tp_per_cls[cls_in] + fp_per_cls[cls_in] != 0
+        else np.nan
+                             for cls_out, cls_in in self._classes.items()}
+
+        f1_per_cls = {'f1/' + str(cls_out): 2 * tp_per_cls[cls_in] /
+                                            (2 * tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in])
+        if 2 * tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] != 0
+        else np.nan
+                      for cls_out, cls_in in self._classes.items()}
+
+        threat_sc_per_cls = {'threat_sc/' + str(cls_out): tp_per_cls[cls_in] /
+                                                          (tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in])
+        if tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] != 0
+        else np.nan
+                             for cls_out, cls_in in self._classes.items()}
+
+        mean_recall = np.nanmean(list(recall_per_cls.values()))
+        mean_precision = np.nanmean(list(precision_per_cls.values()))
+        mean_f1 = np.nanmean(list(f1_per_cls.values()))
+        mean_threat_sc = np.nanmean(list(threat_sc_per_cls.values()))
+
+        tensorboard_logs = {'val_loss': avg_loss, 'std_loss': std_loss}
+
+        tensorboard_logs.update(recall_per_cls)
+        tensorboard_logs.update(precision_per_cls)
+        tensorboard_logs.update(f1_per_cls)
+        tensorboard_logs.update(threat_sc_per_cls)
+
+        tensorboard_logs['mean_recall'] = mean_recall
+        tensorboard_logs['mean_precision'] = mean_precision
+        tensorboard_logs['mean_f1'] = mean_f1
+        tensorboard_logs['mean_threat_sc'] = mean_threat_sc
+
+        ret = {'val_loss': avg_loss, 'log': tensorboard_logs}
+
+        return ret
+
+    def _binary_metrics(self, pred, target):
+        output = {}
+        # calc contingency table
+        with torch.no_grad():
+            classes, counts = np.unique(pred, return_counts=True)
+
+            tp_per_cls = {}
+            fp_per_cls = {}
+            fn_per_cls = {}
+            tn_per_cls = {}
+            for cls, pred_p_cls in zip(classes, counts):
+                inds = torch.where(target == cls)[0]
+                p_cls = len(inds)
+
+                tp_per_cls[cls] = (pred[inds] == target[inds]).sum().item()
+                fp_per_cls[cls] = pred_p_cls - tp_per_cls[cls]
+                fn_per_cls[cls] = p_cls - tp_per_cls[cls]
+                tn_per_cls[cls] = target.shape[0] - p_cls - fn_per_cls[cls]
+
+        output.update({'tp_per_cls': tp_per_cls})
+        output.update({'fn_per_cls': fn_per_cls})
+        output.update({'fp_per_cls': fp_per_cls})
+        output.update({'tn_per_cls': tn_per_cls})
+
+        return output
+
     def training_step(self, batch, batch_idx):
         data, target = batch
         loss = self.loss(input=self.forward(data), target=self.classes(target))
@@ -162,24 +240,6 @@ class LSTM2(_LSTM):
         # loss = self.loss(input=self.forward(data), target=self.classes(target))
         nll = - self.logsoft(self.forward(data))
         loss = nll[torch.arange(len(target)), target]
-        # calc contingency table
-        with torch.no_grad():
-
-            pred = nll.argmin(dim=1)
-            classes, counts = np.unique(pred, return_counts=True)
-
-            tp_per_cls = {}
-            fp_per_cls = {}
-            fn_per_cls = {}
-            tn_per_cls = {}
-            for cls, pred_p_cls in zip(classes, counts):
-                inds = torch.where(target == cls)[0]
-                p_cls = len(inds)
-
-                tp_per_cls[cls] = (pred[inds] == target[inds]).sum().item()
-                fp_per_cls[cls] = pred_p_cls - tp_per_cls[cls]
-                fn_per_cls[cls] = p_cls - tp_per_cls[cls]
-                tn_per_cls[cls] = target.shape[0] - p_cls - fn_per_cls[cls]
 
         tqdm_dict = {'val_loss': loss, 'batch_idx': batch_idx}
         log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
@@ -187,64 +247,9 @@ class LSTM2(_LSTM):
         output = OrderedDict({'val_loss': loss})
         output.update(log)
 
-        output.update({'tp_per_cls': tp_per_cls})
-        output.update({'fn_per_cls': fn_per_cls})
-        output.update({'fp_per_cls': fp_per_cls})
-        output.update({'tn_per_cls': tn_per_cls})
-
+        pred = nll.requires_grad_(False).argmin(dim=1)
+        output.update(self._binary_metrics(pred, target))
         return output
-
-    def validation_end(self, outputs):
-        avg_loss = torch.cat([x['val_loss'] for x in outputs]).mean()
-        std_loss = torch.cat([x['val_loss'] for x in outputs]).std()
-
-        tp_per_cls = self._sum_metric_per_cls('tp_per_cls', outputs)
-        fp_per_cls = self._sum_metric_per_cls('fp_per_cls', outputs)
-        fn_per_cls = self._sum_metric_per_cls('fn_per_cls', outputs)
-        # tn_per_cls = self._sum_metric_per_cls('tn', 'tn_per_cls', outputs)
-
-        recall_per_cls = {'recall/' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fn_per_cls[cls_in])
-                          if tp_per_cls[cls_in] + fn_per_cls[cls_in] != 0
-                          else np.nan
-                          for cls_out, cls_in in self._classes.items()}
-
-        precision_per_cls = {'precision/' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fp_per_cls[cls_in])
-                             if tp_per_cls[cls_in] + fp_per_cls[cls_in] != 0
-                             else np.nan
-                             for cls_out, cls_in in self._classes.items()}
-
-        f1_per_cls = {'f1/' + str(cls_out): 2 * tp_per_cls[cls_in] /
-                                           (2 * tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in])
-                      if 2 * tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] != 0
-                      else np.nan
-                      for cls_out, cls_in in self._classes.items()}
-
-        threat_sc_per_cls = {'threat_sc/' + str(cls_out): tp_per_cls[cls_in] /
-                                                   (tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in])
-                             if tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] != 0
-                             else np.nan
-                             for cls_out, cls_in in self._classes.items()}
-
-        mean_recall = np.nanmean(list(recall_per_cls.values()))
-        mean_precision = np.nanmean(list(precision_per_cls.values()))
-        mean_f1 = np.nanmean(list(f1_per_cls.values()))
-        mean_threat_sc = np.nanmean(list(threat_sc_per_cls.values()))
-
-        tensorboard_logs = {'val_loss': avg_loss, 'std_loss': std_loss}
-
-        tensorboard_logs.update(recall_per_cls)
-        tensorboard_logs.update(precision_per_cls)
-        tensorboard_logs.update(f1_per_cls)
-        tensorboard_logs.update(threat_sc_per_cls)
-
-        tensorboard_logs['mean_recall'] = mean_recall
-        tensorboard_logs['mean_precision'] = mean_precision
-        tensorboard_logs['mean_f1'] = mean_f1
-        tensorboard_logs['mean_threat_sc'] = mean_threat_sc
-
-        ret = {'val_loss': avg_loss, 'log': tensorboard_logs}
-
-        return ret
 
     def _sum_metric_per_cls(self, name_in, outputs):
         ret = {}
@@ -253,7 +258,6 @@ class LSTM2(_LSTM):
                    if cls_in in x[name_in]]
             ret[cls_in] = np.sum(lis, dtype=np.int16)
         return ret
-
 
 
 class EncoderDense(nn.Module):
