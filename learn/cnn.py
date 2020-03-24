@@ -44,6 +44,9 @@ class _LSTM(ptl.LightningModule):
 
         self.seq_len = seq_len
 
+        self.loss = nn.CrossEntropyLoss()
+        self.logsoft = nn.LogSoftmax(dim=1)
+
     def _get_dataloader(self, path):
         is_valid_file = lambda path: path.endswith('npy')
         loader = lambda path: torch.Tensor(np.load(path))
@@ -193,7 +196,6 @@ class LSTM(_LSTM):
                               padding=padding)
 
         self.linear_head = nn.Linear(in_features=int(np.prod(input_shape)), out_features=len(self._classes))
-        self.loss = nn.CrossEntropyLoss()
 
     def forward(self, x):
         h, c = self.lstm(x)
@@ -220,9 +222,6 @@ class LSTM2(_LSTM):
         self.reduce = nn.Conv1d(in_channels=self.seq_len, out_channels=1, kernel_size=reduce_kernel_size,
                                 padding=reduce_kernel_size // 2)
         self.linear_head = nn.Linear(in_features=hidden_size, out_features=len(self._classes))
-
-        self.loss = nn.CrossEntropyLoss()
-        self.logsoft = nn.LogSoftmax(dim=1)
 
     def forward(self, x):
         encs = []
