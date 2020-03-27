@@ -22,7 +22,7 @@ class SeminarReader(_TimeRasterReader):
 
         path_dict = {}
         for i, fname in enumerate(acc):
-            date = re.findall(self.time_pattern, fname)[-1]
+            date = (re.findall(self.time_pattern, fname)[-1]).replace('_', '').replace('-', '')
             year = int(date[:4])
             month = int(date[4:6])
             day = int(date[6:8])
