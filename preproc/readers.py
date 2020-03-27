@@ -1,12 +1,12 @@
 import sys
 import os
-sys.path.append(os.path.abspath('..'))
+sys.path.insert(0, os.path.abspath('../..'))
 
 import glob
 import datetime as dt
 import re
 
-from RSreader.base import _TimeRasterReader
+from RSreader.base.readers import _TimeRasterReader
 
 
 class SeminarReader(_TimeRasterReader):
@@ -32,3 +32,5 @@ class SeminarReader(_TimeRasterReader):
             path_dict[os.path.join(self.path, fname)] = dt.datetime(year=year, month=month, day=day)
 
         return path_dict
+
+
