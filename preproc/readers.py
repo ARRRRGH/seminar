@@ -1,4 +1,7 @@
+import sys
 import os
+sys.path.append(os.path.abspath('..'))
+
 import glob
 import datetime as dt
 import re
