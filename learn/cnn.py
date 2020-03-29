@@ -55,6 +55,11 @@ class _LSTM(ptl.LightningModule):
         self.loss = nn.CrossEntropyLoss()
         self.logsoft = nn.LogSoftmax(dim=1)
 
+    def _construct_int_classes(self):
+        val_idx = self.val_dataloader().class_to_idx
+        trn_idx = self.train_dataloader().class_to_idx
+
+
     def _construct_class_hierarchy_graph(self):
         graph = nx.Graph()
         graph.add_node('0')
@@ -99,14 +104,16 @@ class _LSTM(ptl.LightningModule):
         tensorboard_logs = {'val_loss': avg_loss, 'std_loss': std_loss}
 
         # calculate binary metrics
-        for depth in range(2, self.max_considered_depth + 2):
-            
-            classes = [co[:depth] for co, ci in self._classes.items()]
+        for depth in range(1, self.max_considered_depth):
 
-            tp_per_cls = self._sum_metric_per_cls('tp_per_cls_%d' % (depth - 2), outputs)
-            fp_per_cls = self._sum_metric_per_cls('fp_per_cls_%d' % (depth - 2), outputs)
-            fn_per_cls = self._sum_metric_per_cls('fn_per_cls_%d' % (depth - 2), outputs)
+            classes = set([co[:depth] for co, ci in self._classes.items()])
+
+            tp_per_cls = self._sum_metric_per_cls('tp_per_cls_%d' % depth, outputs, classes)
+            fp_per_cls = self._sum_metric_per_cls('fp_per_cls_%d' % depth, outputs, classes)
+            fn_per_cls = self._sum_metric_per_cls('fn_per_cls_%d' % depth, outputs, classes)
             # tn_per_cls = self._sum_metric_per_cls('tn', 'tn_per_cls', outputs)
+
+            # print(depth, tp_per_cls, classes)
 
             recall_per_cls = {'recall_d%d/' % (depth - 2) + str(co): tp_per_cls[co] / (tp_per_cls[co] + fn_per_cls[co])
                               if tp_per_cls[co] + fn_per_cls[co] != 0
@@ -151,7 +158,7 @@ class _LSTM(ptl.LightningModule):
 
     def _calculate_contingency_table(self, pred, target):
         output = {}
-
+        # print(target.shape)
         def contingency(pred, target):
             # calc contingency table
             with torch.no_grad():
@@ -161,11 +168,11 @@ class _LSTM(ptl.LightningModule):
                 fp_per_cls = {}
                 fn_per_cls = {}
                 tn_per_cls = {}
-                
-                for cls, pred_p_cls in zip(classes, counts):
-                    inds = np.where(target == cls)[0]
-                    p_cls = len(inds)
 
+                for cls, pred_p_cls in zip(classes, counts):
+                    inds = np.where(target == cls)
+                    p_cls = len(inds)
+                    # print(cls, inds, pred.shape, target.shape, target, pred)
                     tp_per_cls[cls] = (pred[inds] == target[inds]).sum()
                     fp_per_cls[cls] = pred_p_cls - tp_per_cls[cls]
                     fn_per_cls[cls] = p_cls - tp_per_cls[cls]
@@ -173,21 +180,21 @@ class _LSTM(ptl.LightningModule):
 
             return tp_per_cls, fp_per_cls, tn_per_cls, fn_per_cls
 
-        for depth in range(2, self.max_considered_depth + 2):
+        for depth in range(1, self.max_considered_depth):
             tp_per_cls, fp_per_cls, tn_per_cls, fn_per_cls = contingency(np.array([p[:depth] for p in pred]),
                                                                          np.array([t[:depth] for t in target]))
-            output.update({'tp_per_cls_%d' % (depth - 2): tp_per_cls})
-            output.update({'fn_per_cls_%d' % (depth - 2): fn_per_cls})
-            output.update({'fp_per_cls_%d' % (depth - 2): fp_per_cls})
-            output.update({'tn_per_cls_%d' % (depth - 2): tn_per_cls})
+            output.update({'tp_per_cls_%d' % depth: tp_per_cls})
+            output.update({'fn_per_cls_%d' % depth: fn_per_cls})
+            output.update({'fp_per_cls_%d' % depth: fp_per_cls})
+            output.update({'tn_per_cls_%d' % depth: tn_per_cls})
 
         return output
 
-    def _sum_metric_per_cls(self, name_in, outputs):
+    def _sum_metric_per_cls(self, name_in, outputs, classes):
         ret = {}
-        for cls_out, cls_in in self._classes.items():
-            lis = [x[name_in][cls_in] for x in outputs if cls_in in x[name_in]]
-            ret[cls_in] = np.sum(lis, dtype=np.int16)
+        for cls_out in classes:
+            lis = [x[name_in][cls_out] for x in outputs if cls_out in x[name_in]]
+            ret[cls_out] = np.sum(lis, dtype=np.int16)
         return ret
 
     def training_step(self, batch, batch_idx):
