@@ -46,6 +46,7 @@ class _LSTM(ptl.LightningModule):
         self._classes = BiDict(dict(self.val_dataloader().dataset.class_to_idx,
                                     **self.train_dataloader().dataset.class_to_idx))
         self._hierarchy_graph = self._construct_class_hierarchy_graph()
+        self.max_considered_depth = self.hierarchy_weights.shape[1]
 
         self.clsin2clsout = lambda l: np.array(list(it.chain(*map(self._classes.inverse.get, np.array(l)))))
 
@@ -95,77 +96,87 @@ class _LSTM(ptl.LightningModule):
         avg_loss = torch.cat([x['val_loss'] for x in outputs]).mean()
         std_loss = torch.cat([x['val_loss'] for x in outputs]).std()
 
-        tp_per_cls = self._sum_metric_per_cls('tp_per_cls', outputs)
-        fp_per_cls = self._sum_metric_per_cls('fp_per_cls', outputs)
-        fn_per_cls = self._sum_metric_per_cls('fn_per_cls', outputs)
-        # tn_per_cls = self._sum_metric_per_cls('tn', 'tn_per_cls', outputs)
+        tensorboard_logs = {'val_loss': avg_loss, 'std_loss': std_loss}
 
-        recall_per_cls = {'recall/' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fn_per_cls[cls_in])
-                          if tp_per_cls[cls_in] + fn_per_cls[cls_in] != 0
+        # calculate binary metrics
+        for depth in range(2, self.max_considered_depth + 2):
+
+            tp_per_cls = self._sum_metric_per_cls('tp_per_cls_%d' % (depth - 2), outputs)
+            fp_per_cls = self._sum_metric_per_cls('fp_per_cls_%d' % (depth - 2), outputs)
+            fn_per_cls = self._sum_metric_per_cls('fn_per_cls_%d' % (depth - 2), outputs)
+            # tn_per_cls = self._sum_metric_per_cls('tn', 'tn_per_cls', outputs)
+
+            recall_per_cls = {'recall_d%d/' % (depth - 2) + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fn_per_cls[cls_in])
+                              if tp_per_cls[cls_in] + fn_per_cls[cls_in] != 0
+                              else np.nan
+                              for cls_out, cls_in in self._classes.items()}
+
+            precision_per_cls = {'precision_d%d/' % (depth - 2) + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fp_per_cls[cls_in])
+                                 if tp_per_cls[cls_in] + fp_per_cls[cls_in] != 0
+                                 else np.nan
+                                 for cls_out, cls_in in self._classes.items()}
+
+            f1_per_cls = {'f1_d%d/' % (depth - 2) + str(cls_out): 2 * tp_per_cls[cls_in] / (2 * tp_per_cls[cls_in] +
+                                                                          fn_per_cls[cls_in] + fp_per_cls[cls_in])
+                          if 2 * tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] != 0
                           else np.nan
                           for cls_out, cls_in in self._classes.items()}
 
-        precision_per_cls = {'precision/' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fp_per_cls[cls_in])
-                             if tp_per_cls[cls_in] + fp_per_cls[cls_in] != 0
-                             else np.nan
-                             for cls_out, cls_in in self._classes.items()}
+            threat_sc_per_cls = {'threat_sc_d%d/' % (depth - 2) + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] +
+                                                                                    fn_per_cls[cls_in] + fp_per_cls[cls_in])
+                                 if tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] != 0
+                                 else np.nan
+                                 for cls_out, cls_in in self._classes.items()}
 
-        f1_per_cls = {'f1/' + str(cls_out): 2 * tp_per_cls[cls_in] / (2 * tp_per_cls[cls_in] +
-                                                                      fn_per_cls[cls_in] + fp_per_cls[cls_in])
-                      if 2 * tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] != 0
-                      else np.nan
-                      for cls_out, cls_in in self._classes.items()}
+            mean_recall = np.nanmean(list(recall_per_cls.values()))
+            mean_precision = np.nanmean(list(precision_per_cls.values()))
+            mean_f1 = np.nanmean(list(f1_per_cls.values()))
+            mean_threat_sc = np.nanmean(list(threat_sc_per_cls.values()))
 
-        threat_sc_per_cls = {'threat_sc/' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] +
-                                                                                fn_per_cls[cls_in] + fp_per_cls[cls_in])
-                             if tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] != 0
-                             else np.nan
-                             for cls_out, cls_in in self._classes.items()}
+            tensorboard_logs.update(recall_per_cls)
+            tensorboard_logs.update(precision_per_cls)
+            tensorboard_logs.update(f1_per_cls)
+            tensorboard_logs.update(threat_sc_per_cls)
 
-        mean_recall = np.nanmean(list(recall_per_cls.values()))
-        mean_precision = np.nanmean(list(precision_per_cls.values()))
-        mean_f1 = np.nanmean(list(f1_per_cls.values()))
-        mean_threat_sc = np.nanmean(list(threat_sc_per_cls.values()))
-
-        tensorboard_logs = {'val_loss': avg_loss, 'std_loss': std_loss}
-
-        tensorboard_logs.update(recall_per_cls)
-        tensorboard_logs.update(precision_per_cls)
-        tensorboard_logs.update(f1_per_cls)
-        tensorboard_logs.update(threat_sc_per_cls)
-
-        tensorboard_logs['mean_recall'] = mean_recall
-        tensorboard_logs['mean_precision'] = mean_precision
-        tensorboard_logs['mean_f1'] = mean_f1
-        tensorboard_logs['mean_threat_sc'] = mean_threat_sc
+            tensorboard_logs['mean_recall_d%d/' % (depth - 2)] = mean_recall
+            tensorboard_logs['mean_precision_d%d/' % (depth - 2)] = mean_precision
+            tensorboard_logs['mean_f1_d%d/' % (depth - 2)] = mean_f1
+            tensorboard_logs['mean_threat_sc_d%d/' % (depth - 2)] = mean_threat_sc
 
         ret = {'val_loss': avg_loss, 'log': tensorboard_logs}
 
         return ret
 
-    def _binary_metrics(self, pred, target):
+    def _calculate_contingency_table(self, pred, target):
         output = {}
-        # calc contingency table
-        with torch.no_grad():
-            classes, counts = np.unique(pred, return_counts=True)
 
-            tp_per_cls = {}
-            fp_per_cls = {}
-            fn_per_cls = {}
-            tn_per_cls = {}
-            for cls, pred_p_cls in zip(classes, counts):
-                inds = torch.where(target == cls)[0]
-                p_cls = len(inds)
+        def contingency(pred, target):
+            # calc contingency table
+            with torch.no_grad():
+                classes, counts = np.unique(pred, return_counts=True)
 
-                tp_per_cls[cls] = (pred[inds] == target[inds]).sum().item()
-                fp_per_cls[cls] = pred_p_cls - tp_per_cls[cls]
-                fn_per_cls[cls] = p_cls - tp_per_cls[cls]
-                tn_per_cls[cls] = target.shape[0] - p_cls - fn_per_cls[cls]
+                tp_per_cls = {}
+                fp_per_cls = {}
+                fn_per_cls = {}
+                tn_per_cls = {}
+                for cls, pred_p_cls in zip(classes, counts):
+                    inds = torch.where(target == cls)[0]
+                    p_cls = len(inds)
 
-        output.update({'tp_per_cls': tp_per_cls})
-        output.update({'fn_per_cls': fn_per_cls})
-        output.update({'fp_per_cls': fp_per_cls})
-        output.update({'tn_per_cls': tn_per_cls})
+                    tp_per_cls[cls] = (pred[inds] == target[inds]).sum().item()
+                    fp_per_cls[cls] = pred_p_cls - tp_per_cls[cls]
+                    fn_per_cls[cls] = p_cls - tp_per_cls[cls]
+                    tn_per_cls[cls] = target.shape[0] - p_cls - fn_per_cls[cls]
+
+            return tp_per_cls, fp_per_cls, tn_per_cls, fn_per_cls
+
+        for depth in range(2, self.max_considered_depth + 2):
+            tp_per_cls, fp_per_cls, tn_per_cls, fn_per_cls = contingency([p[:depth] for p in pred],
+                                                                         [t[:depth] for t in target])
+            output.update({'tp_per_cls_%d' % (depth - 2): tp_per_cls})
+            output.update({'fn_per_cls_%d' % (depth - 2): fn_per_cls})
+            output.update({'fp_per_cls_%d' % (depth - 2): fp_per_cls})
+            output.update({'tn_per_cls_%d' % (depth - 2): tn_per_cls})
 
         return output
 
@@ -194,7 +205,9 @@ class _LSTM(ptl.LightningModule):
         # nll = - self.logsoft(self.forward(data))
         # loss = nll[torch.arange(len(target)), target]
 
-        loss, pred = self.hierarchical_cross_entropy_loss(batch)
+        loss, pred, target = self.hierarchical_cross_entropy_loss(batch)
+        pred_in, pred_out = pred
+        target_in, target_out = target
 
         tqdm_dict = {'val_loss': loss, 'batch_idx': batch_idx}
         log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
@@ -202,8 +215,7 @@ class _LSTM(ptl.LightningModule):
         output = OrderedDict({'val_loss': loss})
         output.update(log)
 
-        _, target_in = batch
-        output.update(self._binary_metrics(pred, target_in))
+        output.update(self._calculate_contingency_table(pred_out, target_out))
         return output
 
     def hierarchical_cross_entropy_loss(self, batch):
@@ -222,10 +234,10 @@ class _LSTM(ptl.LightningModule):
             dist = nx.shortest_path_length(self._hierarchy_graph,
                                            '0' + pred,
                                            '0' + target)
-            layer_dist = dist // 2 - 1
+            layer_dist = self.max_considered_depth - dist // 2 - 1
             layer0_cls = int(str(target)[0]) - 1
             weights.append(self.hierarchy_weights[layer0_cls, layer_dist])
-        return loss * torch.Tensor(weights).requires_grad_(False), preds_in
+        return loss * torch.Tensor(weights).requires_grad_(False), (preds_in, preds_out), (in_targets, out_targets)
 
 
 class LSTM(_LSTM):
