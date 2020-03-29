@@ -115,12 +115,12 @@ class _LSTM(ptl.LightningModule):
 
             # print(depth, tp_per_cls, classes)
 
-            recall_per_cls = {'recall_d%d/' % (depth - 2) + str(co): tp_per_cls[co] / (tp_per_cls[co] + fn_per_cls[co])
+            recall_per_cls = {'recall_d%d/' % depth + str(co): tp_per_cls[co] / (tp_per_cls[co] + fn_per_cls[co])
                               if tp_per_cls[co] + fn_per_cls[co] != 0
                               else np.nan
                               for co in classes}
 
-            precision_per_cls = {'precision_d%d/' % (depth - 2) + str(co): tp_per_cls[co] / (tp_per_cls[co] + fp_per_cls[co])
+            precision_per_cls = {'precision_d%d/' % depth + str(co): tp_per_cls[co] / (tp_per_cls[co] + fp_per_cls[co])
                                  if tp_per_cls[co] + fp_per_cls[co] != 0
                                  else np.nan
                                  for co in classes}
@@ -131,7 +131,7 @@ class _LSTM(ptl.LightningModule):
                           else np.nan
                           for co in classes}
 
-            threat_sc_per_cls = {'threat_sc_d%d/' % (depth - 2) + str(co): tp_per_cls[co] / (tp_per_cls[co] +
+            threat_sc_per_cls = {'threat_sc_d%d/' % depth + str(co): tp_per_cls[co] / (tp_per_cls[co] +
                                                                                     fn_per_cls[co] + fp_per_cls[co])
                                  if tp_per_cls[co] + fn_per_cls[co] + fp_per_cls[co] != 0
                                  else np.nan
@@ -170,7 +170,7 @@ class _LSTM(ptl.LightningModule):
                 tn_per_cls = {}
 
                 for cls, pred_p_cls in zip(classes, counts):
-                    inds = np.where(target == cls)
+                    inds = np.where(target == cls)[0]
                     p_cls = len(inds)
                     # print(cls, inds, pred.shape, target.shape, target, pred)
                     tp_per_cls[cls] = (pred[inds] == target[inds]).sum()
