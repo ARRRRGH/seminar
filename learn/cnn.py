@@ -178,8 +178,9 @@ class _LSTM(ptl.LightningModule):
         return ret
 
     def training_step(self, batch, batch_idx):
-        data, target = batch
-        loss = self.loss(input=self.forward(data), target=self.clsout2clsin(target))
+        #data, target = batch
+        #loss = self.loss(input=self.forward(data), target=self.clsout2clsin(target))
+        loss, _ = self.hierarchical_cross_entropy_loss(batch)
 
         tqdm_dict = {'training_loss': loss, 'batch_idx': batch_idx}
         log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
@@ -191,10 +192,12 @@ class _LSTM(ptl.LightningModule):
     def validation_step(self, batch, batch_idx):
         data, target = batch
         target = self.clsout2clsin(target)
+        #
+        # # loss = self.loss(input=self.forward(data), target=self.clsout2clsin(target))
+        # nll = - self.logsoft(self.forward(data))
+        # loss = nll[torch.arange(len(target)), target]
 
-        # loss = self.loss(input=self.forward(data), target=self.clsout2clsin(target))
-        nll = - self.logsoft(self.forward(data))
-        loss = nll[torch.arange(len(target)), target]
+        loss, nll = self.hierarchical_cross_entropy_loss(batch)
 
         tqdm_dict = {'val_loss': loss, 'batch_idx': batch_idx}
         log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
@@ -220,9 +223,9 @@ class _LSTM(ptl.LightningModule):
                                            '0' + str(self.clsin2clsout(torch.argmin(nll, dim=1).item())),
                                            '0' + str(target))
             layer_dist = dist // 2 - 1
-            layer0_cls = int(str(target)[0])
+            layer0_cls = int(str(target)[0]) - 1
             weights.append(self.hierarchy_weights[layer0_cls, layer_dist])
-        return loss * weights
+        return loss * weights, nlls
 
 
 class LSTM(_LSTM):
