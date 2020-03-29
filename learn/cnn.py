@@ -44,11 +44,11 @@ class _LSTM(ptl.LightningModule):
         self._classes = BiDict([(val, key) for key, val in enumerate(classes)])
         self._hierarchy_graph = self._construct_class_hierarchy_graph()
 
-        self.call_classes = np.vectorize(lambda entry: self._classes.get(entry, entry))
-        self.call_inv_classes = np.vectorize(lambda entry: self._classes.inverse.get(entry.item(), entry.item()))
+        self.call_classes = np.vectorize(lambda entry: self._classes.get(entry))
+        self.call_inv_classes = np.vectorize(lambda entry: self._classes.inverse.get(entry))
 
         self.clsout2clsin = lambda arr: torch.Tensor(self.call_classes(arr)).to(torch.long)
-        self.clsin2clsout = lambda arr: torch.Tensor(self.call_inv_classes(arr)).to(torch.long)
+        self.clsin2clsout = lambda arr: self.call_inv_classes(arr)[0]
 
         self.seq_len = seq_len
 
@@ -190,9 +190,6 @@ class _LSTM(ptl.LightningModule):
         return output
 
     def validation_step(self, batch, batch_idx):
-        data, target = batch
-        target = self.clsout2clsin(target)
-        #
         # # loss = self.loss(input=self.forward(data), target=self.clsout2clsin(target))
         # nll = - self.logsoft(self.forward(data))
         # loss = nll[torch.arange(len(target)), target]
@@ -205,12 +202,15 @@ class _LSTM(ptl.LightningModule):
         output = OrderedDict({'val_loss': loss})
         output.update(log)
 
-        pred = pred
-        output.update(self._binary_metrics(pred, target))
+        _, target = batch
+        target_in = self.clsout2clsin(target)
+
+        output.update(self._binary_metrics(pred, target_in))
         return output
 
     def hierarchical_cross_entropy_loss(self, batch):
         data, out_targets = batch
+        print(out_targets)
         in_targets = self.clsout2clsin(out_targets)
 
         nlls = - self.logsoft(self.forward(data))
@@ -220,14 +220,15 @@ class _LSTM(ptl.LightningModule):
 
         # get shortest path
         weights = []
+        print(preds, out_targets, in_targets)
         for pred, target in zip(preds, out_targets):
             dist = nx.shortest_path_length(self._hierarchy_graph,
                                            '0' + str(self.clsin2clsout(pred)),
-                                           '0' + str(target))
+                                           '0' + str(target.item()))
             layer_dist = dist // 2 - 1
             layer0_cls = int(str(target)[0]) - 1
             weights.append(self.hierarchy_weights[layer0_cls, layer_dist])
-        return loss * weights, preds
+        return loss * torch.Tensor(weights), preds
 
 
 class LSTM(_LSTM):
