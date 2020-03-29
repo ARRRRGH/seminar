@@ -14,6 +14,7 @@ from collections import OrderedDict
 from torchvision import models
 
 import networkx as nx
+import itertools as it
 
 try:
     from .cnn_lstm.convlstm import ConvLSTM
@@ -46,11 +47,7 @@ class _LSTM(ptl.LightningModule):
                                     **self.train_dataloader().dataset.class_to_idx))
         self._hierarchy_graph = self._construct_class_hierarchy_graph()
 
-        self.call_classes = np.vectorize(lambda entry: self._classes.get(entry))
-        self.call_inv_classes = np.vectorize(lambda entry: self._classes.inverse.get(entry))
-
-        self.clsout2clsin = lambda arr: torch.Tensor(self.call_classes(arr)).to(torch.long)
-        self.clsin2clsout = lambda arr: self.call_inv_classes(arr)[0]
+        self.clsin2clsout = lambda l: list(it.chain(*map(self._classes.inverse.get, l)))
 
         self.seq_len = seq_len
 
@@ -83,7 +80,7 @@ class _LSTM(ptl.LightningModule):
         if self.epoch_size is not None:
             dset = Subset(dset, np.random.choice(len(dset), self.epoch_size, replace=False))
 
-        return DataLoader(dset, batch_size=self.batch_size, num_workers=self.n_jobs)
+        return DataLoader(dset, batch_size=self.batch_size, num_workers=self.n_jobs, shuffle=True)
 
     def train_dataloader(self):
         return self._get_dataloader(self.train_image_folder)
@@ -223,8 +220,8 @@ class _LSTM(ptl.LightningModule):
         weights = []
         for pred, target in zip(preds_out, out_targets):
             dist = nx.shortest_path_length(self._hierarchy_graph,
-                                           '0' + str(pred),
-                                           '0' + str(target))
+                                           '0' + pred,
+                                           '0' + target)
             layer_dist = dist // 2 - 1
             layer0_cls = int(str(target)[0]) - 1
             weights.append(self.hierarchy_weights[layer0_cls, layer_dist])
