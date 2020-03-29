@@ -27,9 +27,11 @@ def pred_array(model, inp, arr=None, model_arr=None, batch_size=10000, no_val=-1
 
     out = run_jobs(jobs, n_jobs=n_jobs)
 
-    out_df = pd.DataFrame(index=inp.index)
+    out_df = pd.DataFrame(columns=['pred'], index=inp.index)
+    out_df = out_df.fillna(-1)
+
     for i, pred in zip(inds, out):
-        out_df.loc[i, :] =  pred
+        out_df.loc[i, 'pred'] =  pred
         arr[np.unravel_index(i, shape)] = pred
 
     arr = xr.DataArray(arr, dims=['y', 'x'])
