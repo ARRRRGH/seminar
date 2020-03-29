@@ -100,33 +100,35 @@ class _LSTM(ptl.LightningModule):
 
         # calculate binary metrics
         for depth in range(2, self.max_considered_depth + 2):
+            
+            classes = [co[:depth] for co, ci in self._classes.items()]
 
             tp_per_cls = self._sum_metric_per_cls('tp_per_cls_%d' % (depth - 2), outputs)
             fp_per_cls = self._sum_metric_per_cls('fp_per_cls_%d' % (depth - 2), outputs)
             fn_per_cls = self._sum_metric_per_cls('fn_per_cls_%d' % (depth - 2), outputs)
             # tn_per_cls = self._sum_metric_per_cls('tn', 'tn_per_cls', outputs)
 
-            recall_per_cls = {'recall_d%d/' % (depth - 2) + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fn_per_cls[cls_in])
-                              if tp_per_cls[cls_in] + fn_per_cls[cls_in] != 0
+            recall_per_cls = {'recall_d%d/' % (depth - 2) + str(co): tp_per_cls[co] / (tp_per_cls[co] + fn_per_cls[co])
+                              if tp_per_cls[co] + fn_per_cls[co] != 0
                               else np.nan
-                              for cls_out, cls_in in self._classes.items()}
+                              for co in classes}
 
-            precision_per_cls = {'precision_d%d/' % (depth - 2) + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fp_per_cls[cls_in])
-                                 if tp_per_cls[cls_in] + fp_per_cls[cls_in] != 0
+            precision_per_cls = {'precision_d%d/' % (depth - 2) + str(co): tp_per_cls[co] / (tp_per_cls[co] + fp_per_cls[co])
+                                 if tp_per_cls[co] + fp_per_cls[co] != 0
                                  else np.nan
-                                 for cls_out, cls_in in self._classes.items()}
+                                 for co in classes}
 
-            f1_per_cls = {'f1_d%d/' % (depth - 2) + str(cls_out): 2 * tp_per_cls[cls_in] / (2 * tp_per_cls[cls_in] +
-                                                                          fn_per_cls[cls_in] + fp_per_cls[cls_in])
-                          if 2 * tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] != 0
+            f1_per_cls = {'f1_d%d/' % (depth - 2) + str(co): 2 * tp_per_cls[co] / (2 * tp_per_cls[co] +
+                                                                          fn_per_cls[co] + fp_per_cls[co])
+                          if 2 * tp_per_cls[co] + fn_per_cls[co] + fp_per_cls[co] != 0
                           else np.nan
-                          for cls_out, cls_in in self._classes.items()}
+                          for co in classes}
 
-            threat_sc_per_cls = {'threat_sc_d%d/' % (depth - 2) + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] +
-                                                                                    fn_per_cls[cls_in] + fp_per_cls[cls_in])
-                                 if tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] != 0
+            threat_sc_per_cls = {'threat_sc_d%d/' % (depth - 2) + str(co): tp_per_cls[co] / (tp_per_cls[co] +
+                                                                                    fn_per_cls[co] + fp_per_cls[co])
+                                 if tp_per_cls[co] + fn_per_cls[co] + fp_per_cls[co] != 0
                                  else np.nan
-                                 for cls_out, cls_in in self._classes.items()}
+                                 for co in classes}
 
             mean_recall = np.nanmean(list(recall_per_cls.values()))
             mean_precision = np.nanmean(list(precision_per_cls.values()))
@@ -159,6 +161,7 @@ class _LSTM(ptl.LightningModule):
                 fp_per_cls = {}
                 fn_per_cls = {}
                 tn_per_cls = {}
+                
                 for cls, pred_p_cls in zip(classes, counts):
                     inds = np.where(target == cls)[0]
                     p_cls = len(inds)
