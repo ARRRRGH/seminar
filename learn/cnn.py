@@ -216,13 +216,13 @@ class _LSTM(ptl.LightningModule):
         nlls = - self.logsoft(self.forward(data))
         loss = nlls[torch.arange(len(in_targets)), in_targets]
 
-        preds = self.clsin2clsout(torch.argmin(nlls, dim=1))
+        preds = torch.argmin(nlls, dim=1)
 
         # get shortest path
         weights = []
         for pred, target in zip(preds, out_targets):
             dist = nx.shortest_path_length(self._hierarchy_graph,
-                                           '0' + str(pred.item()),
+                                           '0' + str(self.clsin2clsout(pred)),
                                            '0' + str(target))
             layer_dist = dist // 2 - 1
             layer0_cls = int(str(target)[0]) - 1
