@@ -160,10 +160,10 @@ class _LSTM(ptl.LightningModule):
                 fn_per_cls = {}
                 tn_per_cls = {}
                 for cls, pred_p_cls in zip(classes, counts):
-                    inds = torch.where(target == cls)[0]
+                    inds = np.where(target == cls)[0]
                     p_cls = len(inds)
 
-                    tp_per_cls[cls] = (pred[inds] == target[inds]).sum().item()
+                    tp_per_cls[cls] = (pred[inds] == target[inds]).sum()
                     fp_per_cls[cls] = pred_p_cls - tp_per_cls[cls]
                     fn_per_cls[cls] = p_cls - tp_per_cls[cls]
                     tn_per_cls[cls] = target.shape[0] - p_cls - fn_per_cls[cls]
@@ -171,8 +171,8 @@ class _LSTM(ptl.LightningModule):
             return tp_per_cls, fp_per_cls, tn_per_cls, fn_per_cls
 
         for depth in range(2, self.max_considered_depth + 2):
-            tp_per_cls, fp_per_cls, tn_per_cls, fn_per_cls = contingency([p[:depth] for p in pred],
-                                                                         [t[:depth] for t in target])
+            tp_per_cls, fp_per_cls, tn_per_cls, fn_per_cls = contingency(np.array([p[:depth] for p in pred]),
+                                                                         np.array([t[:depth] for t in target]))
             output.update({'tp_per_cls_%d' % (depth - 2): tp_per_cls})
             output.update({'fn_per_cls_%d' % (depth - 2): fn_per_cls})
             output.update({'fp_per_cls_%d' % (depth - 2): fp_per_cls})
@@ -190,7 +190,7 @@ class _LSTM(ptl.LightningModule):
     def training_step(self, batch, batch_idx):
         # data, target = batch
         # loss = self.loss(input=self.forward(data), target=target)
-        loss, _ = self.hierarchical_cross_entropy_loss(batch)
+        loss, _, _ = self.hierarchical_cross_entropy_loss(batch)
         loss = loss.mean()
 
         tqdm_dict = {'training_loss': loss, 'batch_idx': batch_idx}
@@ -234,9 +234,11 @@ class _LSTM(ptl.LightningModule):
             dist = nx.shortest_path_length(self._hierarchy_graph,
                                            '0' + pred,
                                            '0' + target)
-            layer_dist = self.max_considered_depth - dist // 2 - 1
+            layer_dist = max(0, self.max_considered_depth - dist // 2 - 1)
             layer0_cls = int(str(target)[0]) - 1
             weights.append(self.hierarchy_weights[layer0_cls, layer_dist])
+            # print(self.hierarchy_weights[layer0_cls, layer_dist], self.max_considered_depth - dist // 2 - 1, pred, target)
+
         return loss * torch.Tensor(weights).requires_grad_(False), (preds_in, preds_out), (in_targets, out_targets)
 
 
