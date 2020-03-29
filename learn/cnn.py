@@ -27,7 +27,7 @@ DEVICE = torch.device("cuda" if use_cuda else "cpu")
 
 
 class _LSTM(ptl.LightningModule):
-    def __init__(self, classes, train_image_folder, val_image_folder, n_jobs, batch_size, hierarchy_weights,
+    def __init__(self, train_image_folder, val_image_folder, n_jobs, batch_size, hierarchy_weights,
                  seq_len=None, lr=1e-3, epoch_size=None):
         super().__init__()
 
@@ -41,7 +41,9 @@ class _LSTM(ptl.LightningModule):
         self.lr = lr
         self.hierarchy_weights = hierarchy_weights
 
-        self._classes = BiDict([(val, key) for key, val in enumerate(classes)])
+        # create merged class map
+        self._classes = BiDict(dict(self.val_dataloader().dataset.class_to_idx,
+                                    **self.train_dataloader().dataset.class_to_idx))
         self._hierarchy_graph = self._construct_class_hierarchy_graph()
 
         self.call_classes = np.vectorize(lambda entry: self._classes.get(entry))
@@ -178,8 +180,9 @@ class _LSTM(ptl.LightningModule):
         return ret
 
     def training_step(self, batch, batch_idx):
-        #data, target = batch
-        #loss = self.loss(input=self.forward(data), target=self.clsout2clsin(target))
+        # data, target = batch
+        # loss = self.loss(input=self.forward(data), target=self.clsout2clsin(target))
+
         loss, _ = self.hierarchical_cross_entropy_loss(batch)
 
         tqdm_dict = {'training_loss': loss, 'batch_idx': batch_idx}
@@ -202,33 +205,30 @@ class _LSTM(ptl.LightningModule):
         output = OrderedDict({'val_loss': loss})
         output.update(log)
 
-        _, target = batch
-        target_in = self.clsout2clsin(target)
-
+        _, target_in = batch
         output.update(self._binary_metrics(pred, target_in))
         return output
 
     def hierarchical_cross_entropy_loss(self, batch):
-        data, out_targets = batch
-        print(out_targets)
-        in_targets = self.clsout2clsin(out_targets)
+        data, in_targets = batch
+        out_targets = self.clsin2clsout(in_targets)
 
         nlls = - self.logsoft(self.forward(data))
         loss = nlls[torch.arange(len(in_targets)), in_targets]
 
-        preds = torch.argmin(nlls, dim=1)
+        preds_in = torch.argmin(nlls, dim=1)
+        preds_out = self.clsin2clsout(preds_in)
 
         # get shortest path
         weights = []
-        print(preds, out_targets, in_targets)
-        for pred, target in zip(preds, out_targets):
+        for pred, target in zip(preds_out, out_targets):
             dist = nx.shortest_path_length(self._hierarchy_graph,
-                                           '0' + str(self.clsin2clsout(pred)),
-                                           '0' + str(target.item()))
+                                           '0' + str(pred),
+                                           '0' + str(target))
             layer_dist = dist // 2 - 1
             layer0_cls = int(str(target)[0]) - 1
             weights.append(self.hierarchy_weights[layer0_cls, layer_dist])
-        return loss * torch.Tensor(weights), preds
+        return loss * torch.Tensor(weights), preds_in
 
 
 class LSTM(_LSTM):
