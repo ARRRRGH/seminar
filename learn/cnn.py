@@ -115,23 +115,23 @@ class _LSTM(ptl.LightningModule):
 
             # print(depth, tp_per_cls, classes)
 
-            recall_per_cls = {'recall_d%d/' % depth + str(co): tp_per_cls[co] / (tp_per_cls[co] + fn_per_cls[co])
+            recall_per_cls = {'recall/d%d/' % depth + str(co): tp_per_cls[co] / (tp_per_cls[co] + fn_per_cls[co])
                               if tp_per_cls[co] + fn_per_cls[co] != 0
                               else np.nan
                               for co in classes}
 
-            precision_per_cls = {'precision_d%d/' % depth + str(co): tp_per_cls[co] / (tp_per_cls[co] + fp_per_cls[co])
+            precision_per_cls = {'precision/d%d/' % depth + str(co): tp_per_cls[co] / (tp_per_cls[co] + fp_per_cls[co])
                                  if tp_per_cls[co] + fp_per_cls[co] != 0
                                  else np.nan
                                  for co in classes}
 
-            f1_per_cls = {'f1_d%d/' % (depth - 2) + str(co): 2 * tp_per_cls[co] / (2 * tp_per_cls[co] +
+            f1_per_cls = {'f1/d%d/' % depth + str(co): 2 * tp_per_cls[co] / (2 * tp_per_cls[co] +
                                                                           fn_per_cls[co] + fp_per_cls[co])
                           if 2 * tp_per_cls[co] + fn_per_cls[co] + fp_per_cls[co] != 0
                           else np.nan
                           for co in classes}
 
-            threat_sc_per_cls = {'threat_sc_d%d/' % depth + str(co): tp_per_cls[co] / (tp_per_cls[co] +
+            threat_sc_per_cls = {'threat_sc/d%d/' % depth + str(co): tp_per_cls[co] / (tp_per_cls[co] +
                                                                                     fn_per_cls[co] + fp_per_cls[co])
                                  if tp_per_cls[co] + fn_per_cls[co] + fp_per_cls[co] != 0
                                  else np.nan
@@ -147,10 +147,10 @@ class _LSTM(ptl.LightningModule):
             tensorboard_logs.update(f1_per_cls)
             tensorboard_logs.update(threat_sc_per_cls)
 
-            tensorboard_logs['mean_recall_d%d/' % (depth - 2)] = mean_recall
-            tensorboard_logs['mean_precision_d%d/' % (depth - 2)] = mean_precision
-            tensorboard_logs['mean_f1_d%d/' % (depth - 2)] = mean_f1
-            tensorboard_logs['mean_threat_sc_d%d/' % (depth - 2)] = mean_threat_sc
+            tensorboard_logs['mean_recall/d%d/' % depth] = mean_recall
+            tensorboard_logs['mean_precision/d%d/' % depth] = mean_precision
+            tensorboard_logs['mean_f1/d%d/' % depth] = mean_f1
+            tensorboard_logs['mean/threat_sc/d%d/' % depth] = mean_threat_sc
 
         ret = {'val_loss': avg_loss, 'log': tensorboard_logs}
 
@@ -158,7 +158,7 @@ class _LSTM(ptl.LightningModule):
 
     def _calculate_contingency_table(self, pred, target):
         output = {}
-        # print(target.shape)
+
         def contingency(pred, target):
             # calc contingency table
             with torch.no_grad():
