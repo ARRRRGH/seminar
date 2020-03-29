@@ -19,7 +19,7 @@ try:
     from .cnn_lstm.convlstm import ConvLSTM
     from utils import BiDict
 except ModuleNotFoundError:
-    from seminar.cnn_lstm.convlstm import ConvLSTM
+    from seminar.learn.cnn_lstm.convlstm import ConvLSTM
     from seminar.utils import BiDict
 
 use_cuda = torch.cuda.is_available()
