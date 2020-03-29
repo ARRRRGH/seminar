@@ -197,7 +197,7 @@ class _LSTM(ptl.LightningModule):
         # nll = - self.logsoft(self.forward(data))
         # loss = nll[torch.arange(len(target)), target]
 
-        loss, nll = self.hierarchical_cross_entropy_loss(batch)
+        loss, pred = self.hierarchical_cross_entropy_loss(batch)
 
         tqdm_dict = {'val_loss': loss, 'batch_idx': batch_idx}
         log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
@@ -205,7 +205,7 @@ class _LSTM(ptl.LightningModule):
         output = OrderedDict({'val_loss': loss})
         output.update(log)
 
-        pred = nll.requires_grad_(False).argmin(dim=1)
+        pred = pred
         output.update(self._binary_metrics(pred, target))
         return output
 
@@ -216,16 +216,18 @@ class _LSTM(ptl.LightningModule):
         nlls = - self.logsoft(self.forward(data))
         loss = nlls[torch.arange(len(in_targets)), in_targets]
 
+        preds = self.clsin2clsout(torch.argmin(nlls, dim=1))
+
         # get shortest path
         weights = []
-        for nll, target in zip(nlls, out_targets):
+        for pred, target in zip(preds, out_targets):
             dist = nx.shortest_path_length(self._hierarchy_graph,
-                                           '0' + str(self.clsin2clsout(torch.argmin(nll, dim=1).item())),
+                                           '0' + str(pred.item()),
                                            '0' + str(target))
             layer_dist = dist // 2 - 1
             layer0_cls = int(str(target)[0]) - 1
             weights.append(self.hierarchy_weights[layer0_cls, layer_dist])
-        return loss * weights, nlls
+        return loss * weights, preds
 
 
 class LSTM(_LSTM):
