@@ -35,7 +35,7 @@ class FFT_SAR_timeseries(BaseEstimator, TransformerMixin):
         detrended = signal.detrend(X, type='linear')
 
         # get power spectral density
-        fft_psd = np.abs(ff.fft(detrended)) ** 2
+        fft_psd = np.abs(ff.fft(detrended))
 
         if fit:
             self.freqs = ff.fftfreq(fft_psd.shape[1], 6 / 365)

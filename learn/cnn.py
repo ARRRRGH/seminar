@@ -13,20 +13,22 @@ from torchvision.datasets import ImageFolder
 from collections import OrderedDict
 from torchvision import models
 
+import networkx as nx
 
 try:
     from .cnn_lstm.convlstm import ConvLSTM
+    from utils import BiDict
 except ModuleNotFoundError:
     from seminar.cnn_lstm.convlstm import ConvLSTM
-
+    from seminar.utils import BiDict
 
 use_cuda = torch.cuda.is_available()
 DEVICE = torch.device("cuda" if use_cuda else "cpu")
 
 
 class _LSTM(ptl.LightningModule):
-    def __init__(self, classes, train_image_folder, val_image_folder, n_jobs, batch_size, seq_len=None,
-                 lr=1e-3, epoch_size=None):
+    def __init__(self, classes, train_image_folder, val_image_folder, n_jobs, batch_size, hierarchy_weights,
+                 seq_len=None, lr=1e-3, epoch_size=None):
         super().__init__()
 
         self.train_image_folder = train_image_folder
@@ -37,15 +39,38 @@ class _LSTM(ptl.LightningModule):
 
         self.n_jobs = n_jobs
         self.lr = lr
+        self.hierarchy_weights = hierarchy_weights
 
-        self._classes = {val: key for key, val in enumerate(classes)}
+        self._classes = BiDict([(val, key) for key, val in enumerate(classes)])
+        self._hierarchy_graph = self._construct_class_hierarchy_graph()
+
         self.call_classes = np.vectorize(lambda entry: self._classes.get(entry, entry))
-        self.classes = lambda arr: torch.Tensor(self.call_classes(arr)).to(torch.long)
+        self.call_inv_classes = np.vectorize(lambda entry: self._classes.inverse.get(entry.item(), entry.item()))
+
+        self.clsout2clsin = lambda arr: torch.Tensor(self.call_classes(arr)).to(torch.long)
+        self.clsin2clsout = lambda arr: torch.Tensor(self.call_inv_classes(arr)).to(torch.long)
 
         self.seq_len = seq_len
 
         self.loss = nn.CrossEntropyLoss()
         self.logsoft = nn.LogSoftmax(dim=1)
+
+    def _construct_class_hierarchy_graph(self):
+        graph = nx.Graph()
+        graph.add_node('0')
+        classes = list(map(str, self._classes.keys()))
+        self._recurse_graph_levels('0', graph, 0, list(classes))
+        return graph
+
+    def _recurse_graph_levels(self, parent_node, graph, new_layer, subset_classes):
+        new_nodes = set([str(cls_out)[new_layer] for cls_out in subset_classes if new_layer < len(str(cls_out))])
+
+        if new_nodes != set():
+            for new_node in new_nodes:
+                new_subset = list(filter(lambda x: x.startswith(parent_node[1:] + new_node), subset_classes))
+                self._recurse_graph_levels(parent_node + new_node, graph, new_layer + 1, new_subset)
+                graph.add_node(parent_node + new_node)
+                graph.add_edge(parent_node, parent_node + new_node)
 
     def _get_dataloader(self, path):
         is_valid_file = lambda path: path.endswith('npy')
@@ -77,25 +102,25 @@ class _LSTM(ptl.LightningModule):
         # tn_per_cls = self._sum_metric_per_cls('tn', 'tn_per_cls', outputs)
 
         recall_per_cls = {'recall/' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fn_per_cls[cls_in])
-        if tp_per_cls[cls_in] + fn_per_cls[cls_in] != 0
-        else np.nan
+                          if tp_per_cls[cls_in] + fn_per_cls[cls_in] != 0
+                          else np.nan
                           for cls_out, cls_in in self._classes.items()}
 
         precision_per_cls = {'precision/' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] + fp_per_cls[cls_in])
-        if tp_per_cls[cls_in] + fp_per_cls[cls_in] != 0
-        else np.nan
+                             if tp_per_cls[cls_in] + fp_per_cls[cls_in] != 0
+                             else np.nan
                              for cls_out, cls_in in self._classes.items()}
 
-        f1_per_cls = {'f1/' + str(cls_out): 2 * tp_per_cls[cls_in] /
-                                            (2 * tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in])
-        if 2 * tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] != 0
-        else np.nan
+        f1_per_cls = {'f1/' + str(cls_out): 2 * tp_per_cls[cls_in] / (2 * tp_per_cls[cls_in] +
+                                                                      fn_per_cls[cls_in] + fp_per_cls[cls_in])
+                      if 2 * tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] != 0
+                      else np.nan
                       for cls_out, cls_in in self._classes.items()}
 
-        threat_sc_per_cls = {'threat_sc/' + str(cls_out): tp_per_cls[cls_in] /
-                                                          (tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in])
-        if tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] != 0
-        else np.nan
+        threat_sc_per_cls = {'threat_sc/' + str(cls_out): tp_per_cls[cls_in] / (tp_per_cls[cls_in] +
+                                                                                fn_per_cls[cls_in] + fp_per_cls[cls_in])
+                             if tp_per_cls[cls_in] + fn_per_cls[cls_in] + fp_per_cls[cls_in] != 0
+                             else np.nan
                              for cls_out, cls_in in self._classes.items()}
 
         mean_recall = np.nanmean(list(recall_per_cls.values()))
@@ -148,14 +173,13 @@ class _LSTM(ptl.LightningModule):
     def _sum_metric_per_cls(self, name_in, outputs):
         ret = {}
         for cls_out, cls_in in self._classes.items():
-            lis = [x[name_in][cls_in] for x in outputs
-                   if cls_in in x[name_in]]
+            lis = [x[name_in][cls_in] for x in outputs if cls_in in x[name_in]]
             ret[cls_in] = np.sum(lis, dtype=np.int16)
         return ret
 
     def training_step(self, batch, batch_idx):
         data, target = batch
-        loss = self.loss(input=self.forward(data), target=self.classes(target))
+        loss = self.loss(input=self.forward(data), target=self.clsout2clsin(target))
 
         tqdm_dict = {'training_loss': loss, 'batch_idx': batch_idx}
         log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
@@ -166,9 +190,9 @@ class _LSTM(ptl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         data, target = batch
-        target = self.classes(target)
+        target = self.clsout2clsin(target)
 
-        # loss = self.loss(input=self.forward(data), target=self.classes(target))
+        # loss = self.loss(input=self.forward(data), target=self.clsout2clsin(target))
         nll = - self.logsoft(self.forward(data))
         loss = nll[torch.arange(len(target)), target]
 
@@ -182,14 +206,32 @@ class _LSTM(ptl.LightningModule):
         output.update(self._binary_metrics(pred, target))
         return output
 
+    def hierarchical_cross_entropy_loss(self, batch):
+        data, out_targets = batch
+        in_targets = self.clsout2clsin(out_targets)
+
+        nlls = - self.logsoft(self.forward(data))
+        loss = nlls[torch.arange(len(in_targets)), in_targets]
+
+        # get shortest path
+        weights = []
+        for nll, target in zip(nlls, out_targets):
+            dist = nx.shortest_path_length(self._hierarchy_graph,
+                                           '0' + str(self.clsin2clsout(torch.argmin(nll, dim=1).item())),
+                                           '0' + str(target))
+            layer_dist = dist // 2 - 1
+            layer0_cls = int(str(target)[0])
+            weights.append(self.hierarchy_weights[layer0_cls, layer_dist])
+        return loss * weights
+
 
 class LSTM(_LSTM):
 
     def __init__(self, input_shape, in_channels, hidden_channels, kernel_size, num_layers, bias=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.lstm = ConvLSTM(in_channels, hidden_channels, kernel_size, num_layers,
-                             batch_first=True, bias=bias, return_all_layers=False)
+        self.lstm = ConvLSTM(in_channels, hidden_channels, kernel_size, num_layers, batch_first=True, bias=bias,
+                             return_all_layers=False)
 
         padding = kernel_size[-1][0] // 2, kernel_size[-1][1] // 2
         self.conv = nn.Conv2d(in_channels=hidden_channels[-1], kernel_size=kernel_size[-1], out_channels=1,
@@ -211,12 +253,12 @@ class LSTM(_LSTM):
 
 class LSTM2(_LSTM):
 
-    def __init__(self, channels, input_shape, hidden_size, embed_size, in_channels, reduce_kernel_size=3,
-                 drop_rate=0.5, *args, **kwargs):
+    def __init__(self, channels, input_shape, hidden_size, embed_size, in_channels, reduce_kernel_size=3, drop_rate=0.5,
+                 *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.encoder = EncoderCNN(channels, embed_size=embed_size, in_channels=in_channels,
-                                  shape=input_shape, drop_rate=drop_rate)
+        self.encoder = EncoderCNN(channels, embed_size=embed_size, in_channels=in_channels, shape=input_shape,
+                                  drop_rate=drop_rate)
         self.decoder = DecoderRNN(embed_size=embed_size, hidden_size=hidden_size, drop_rate=drop_rate)
 
         self.reduce = nn.Conv1d(in_channels=self.seq_len, out_channels=1, kernel_size=reduce_kernel_size,
@@ -256,13 +298,11 @@ class EncoderDense(nn.Module):
         # dropout layer
         self.dropout = nn.Dropout2d(p=drop_rate)
 
-        # activation layers
-        # self.prelu = nn.PReLU()
+        # activation layers  # self.prelu = nn.PReLU()
 
     def forward(self, images):
-
-        preproc_images = self.upsample(self.pre2(torch.sigmoid(self.pre1(
-                                       images.permute(0, 2, 3, 1)))).permute(0, 3, 1, 2))
+        preproc_images = self.upsample(
+            self.pre2(torch.sigmoid(self.pre1(images.permute(0, 2, 3, 1)))).permute(0, 3, 1, 2))
         # get the embeddings from the densenet
         outs = self.dropout(self.prelu(self.densenet(preproc_images)))
         outs = self.dropout(outs).flatten(1)
@@ -295,8 +335,7 @@ class EncoderCNN(nn.Module):
         self.bns = nn.ModuleList()
         last_ncl = in_channels
         for i, ncl in enumerate(channels):
-            self.convs.append(nn.Conv2d(in_channels=last_ncl,
-                                        out_channels=ncl, kernel_size=3, padding=1))
+            self.convs.append(nn.Conv2d(in_channels=last_ncl, out_channels=ncl, kernel_size=3, padding=1))
 
             self.bns.append(nn.BatchNorm2d(num_features=ncl))
 
@@ -309,8 +348,7 @@ class EncoderCNN(nn.Module):
         # dropout layer
         self.dropout = nn.Dropout2d(p=drop_rate)
 
-        # activation layers
-        # self.prelu = nn.PReLU()
+        # activation layers  # self.prelu = nn.PReLU()
 
     def forward(self, images):
 
@@ -349,7 +387,6 @@ class DecoderRNN(nn.Module):
         self.dropout = nn.Dropout(p=drop_rate)
 
     def forward(self, embedded):
-
         # batch size
         batch_size = embedded.size(0)
 
@@ -360,7 +397,6 @@ class DecoderRNN(nn.Module):
         outputs = []
         # pass the caption word by word
         for t in range(embedded.size(1)):
-
             hidden_state, cell_state = self.lstm_cell(embedded[:, t, :], (hidden_state, cell_state))
 
             # output of the attention mechanism
