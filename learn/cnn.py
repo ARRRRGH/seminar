@@ -47,7 +47,7 @@ class _LSTM(ptl.LightningModule):
                                     **self.train_dataloader().dataset.class_to_idx))
         self._hierarchy_graph = self._construct_class_hierarchy_graph()
 
-        self.clsin2clsout = lambda l: list(it.chain(*map(self._classes.inverse.get, l)))
+        self.clsin2clsout = lambda l: np.array(list(it.chain(*map(self._classes.inverse.get, np.array(l)))))
 
         self.seq_len = seq_len
 
@@ -178,9 +178,9 @@ class _LSTM(ptl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         # data, target = batch
-        # loss = self.loss(input=self.forward(data), target=self.clsout2clsin(target))
-
+        # loss = self.loss(input=self.forward(data), target=target)
         loss, _ = self.hierarchical_cross_entropy_loss(batch)
+        loss = loss.mean()
 
         tqdm_dict = {'training_loss': loss, 'batch_idx': batch_idx}
         log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
@@ -225,7 +225,7 @@ class _LSTM(ptl.LightningModule):
             layer_dist = dist // 2 - 1
             layer0_cls = int(str(target)[0]) - 1
             weights.append(self.hierarchy_weights[layer0_cls, layer_dist])
-        return loss * torch.Tensor(weights), preds_in
+        return loss * torch.Tensor(weights).requires_grad_(False), preds_in
 
 
 class LSTM(_LSTM):
