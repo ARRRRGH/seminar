@@ -58,7 +58,7 @@ class FFT_SAR_timeseries(BaseEstimator, TransformerMixin):
 
     def get_feature_names(self):
         check_is_fitted(self, ['valid_freq_mask', 'freqs'])
-        return [str(freq) for freq in self.freqs[self.valid_freq_mask]]
+        return ['%.3f' % str(freq) for freq in self.freqs[self.valid_freq_mask]]
 
 
 class _FixedCombo(object):
