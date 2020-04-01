@@ -114,7 +114,10 @@ class _LSTM(ptl.LightningModule):
 
         N = float(sum(count))
         for i in range(nclasses):
-            weight_per_class[i] = N/float(count[i])
+            if count[i] > 0:
+                weight_per_class[i] = N / float(count[i])
+            else:
+                weight_per_class[i] = 0
         weight = [0] * len(images)
 
         for idx, val in enumerate(images):
