@@ -29,7 +29,7 @@ DEVICE = torch.device("cuda" if use_cuda else "cpu")
 
 class _LSTM(ptl.LightningModule):
     def __init__(self, train_image_folder, val_image_folder, n_jobs, batch_size, hierarchy_weights,
-                 seq_len=None, lr=1e-3, epoch_size=None, reader=None):
+                 seq_len=None, lr=1e-3, epoch_size=None, reader=None, stratified_input=False):
         super().__init__()
 
         self.train_image_folder = train_image_folder
@@ -43,6 +43,7 @@ class _LSTM(ptl.LightningModule):
         self.hierarchy_weights = hierarchy_weights
 
         self.reader = reader
+        self.stratified_input = stratified_input
 
         # create merged class map
         self._classes = BiDict(dict(self.val_dataloader().dataset.class_to_idx,
@@ -89,10 +90,37 @@ class _LSTM(ptl.LightningModule):
 
         dset = ImageFolder(path, loader=loader, is_valid_file=is_valid_file)
 
+        if self.stratified_input:
+            weights = self._make_weights_for_balanced_classes(dset.imgs, len(dset.classes))
+            weights = torch.DoubleTensor(weights)
+
+            sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights))
+            shuffle = False
+
+        else:
+            sampler = None
+            shuffle = True
+
         if self.epoch_size is not None:
             dset = Subset(dset, np.random.choice(len(dset), self.epoch_size, replace=False))
 
-        return DataLoader(dset, batch_size=self.batch_size, num_workers=self.n_jobs, shuffle=True)
+        return DataLoader(dset, batch_size=self.batch_size, num_workers=self.n_jobs, shuffle=shuffle, sampler=sampler)
+
+    def _make_weights_for_balanced_classes(self, images, nclasses):
+        count = [0] * nclasses
+        for item in images:
+            count[item[1]] += 1
+        weight_per_class = [0.] * nclasses
+
+        N = float(sum(count))
+        for i in range(nclasses):
+            weight_per_class[i] = N/float(count[i])
+        weight = [0] * len(images)
+
+        for idx, val in enumerate(images):
+            weight[idx] = weight_per_class[val[1]]
+
+        return weight
 
     def train_dataloader(self):
         return self._get_dataloader(self.train_image_folder)
