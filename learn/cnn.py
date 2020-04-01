@@ -29,7 +29,7 @@ DEVICE = torch.device("cuda" if use_cuda else "cpu")
 
 class _LSTM(ptl.LightningModule):
     def __init__(self, train_image_folder, val_image_folder, n_jobs, batch_size, hierarchy_weights,
-                 seq_len=None, lr=1e-3, epoch_size=None):
+                 seq_len=None, lr=1e-3, epoch_size=None, reader=None):
         super().__init__()
 
         self.train_image_folder = train_image_folder
@@ -41,6 +41,8 @@ class _LSTM(ptl.LightningModule):
         self.n_jobs = n_jobs
         self.lr = lr
         self.hierarchy_weights = hierarchy_weights
+
+        self.reader = reader
 
         # create merged class map
         self._classes = BiDict(dict(self.val_dataloader().dataset.class_to_idx,
@@ -79,7 +81,11 @@ class _LSTM(ptl.LightningModule):
 
     def _get_dataloader(self, path):
         is_valid_file = lambda path: path.endswith('npy')
-        loader = lambda path: torch.Tensor(np.load(path))
+
+        if self.reader is None:
+            loader = lambda path: torch.Tensor(np.load(path))
+        else:
+            loader = lambda path: torch.Tensor(self.reader(path))
 
         dset = ImageFolder(path, loader=loader, is_valid_file=is_valid_file)
 
@@ -137,20 +143,20 @@ class _LSTM(ptl.LightningModule):
                                  else np.nan
                                  for co in classes}
 
-            mean_recall = np.nanmean(list(recall_per_cls.values()))
-            mean_precision = np.nanmean(list(precision_per_cls.values()))
-            mean_f1 = np.nanmean(list(f1_per_cls.values()))
-            mean_threat_sc = np.nanmean(list(threat_sc_per_cls.values()))
-
             tensorboard_logs.update(recall_per_cls)
             tensorboard_logs.update(precision_per_cls)
             tensorboard_logs.update(f1_per_cls)
             tensorboard_logs.update(threat_sc_per_cls)
 
-            tensorboard_logs['mean_recall/d%d/' % depth] = mean_recall
-            tensorboard_logs['mean_precision/d%d/' % depth] = mean_precision
-            tensorboard_logs['mean_f1/d%d/' % depth] = mean_f1
-            tensorboard_logs['mean/threat_sc/d%d/' % depth] = mean_threat_sc
+            # mean_recall = np.nanmean(list(recall_per_cls.values()))
+            # mean_precision = np.nanmean(list(precision_per_cls.values()))
+            # mean_f1 = np.nanmean(list(f1_per_cls.values()))
+            # mean_threat_sc = np.nanmean(list(threat_sc_per_cls.values()))
+            #
+            # tensorboard_logs['mean_recall/d%d/' % depth] = mean_recall
+            # tensorboard_logs['mean_precision/d%d/' % depth] = mean_precision
+            # tensorboard_logs['mean_f1/d%d/' % depth] = mean_f1
+            # tensorboard_logs['mean_threat_sc/d%d/' % depth] = mean_threat_sc
 
         ret = {'val_loss': avg_loss, 'log': tensorboard_logs}
 
