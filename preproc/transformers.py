@@ -11,13 +11,14 @@ from sklearn.utils.validation import check_is_fitted
 
 
 class FFT_SAR_timeseries(BaseEstimator, TransformerMixin):
-    def __init__(self, thr_freq, scale=False, normalize_psd=True, quantile_range=(0.25, 0.75)):
+    def __init__(self, thr_freq, scale=False, normalize_psd=True, quantile_range=(0.25, 0.75), time_step=6 / 365):
         super().__init__()
 
         self.thr_freq = thr_freq
         self.scale = scale
         self.normalize_psd = normalize_psd
         self.quantile_range = quantile_range
+        self.time_step = time_step
 
     def fit(self, X, *args, **kwargs):
         if self.scale:
@@ -38,7 +39,7 @@ class FFT_SAR_timeseries(BaseEstimator, TransformerMixin):
         fft_psd = np.abs(ff.fft(detrended))
 
         if fit:
-            self.freqs = ff.fftfreq(fft_psd.shape[1], 6 / 365)
+            self.freqs = ff.fftfreq(fft_psd.shape[1], self.time_step)
             self.valid_freq_mask = np.logical_and(self.thr_freq > self.freqs, self.freqs > 0)
             self.out_feat_dim = len(self.freqs[self.valid_freq_mask])
 
