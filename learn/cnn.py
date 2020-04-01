@@ -62,7 +62,6 @@ class _LSTM(ptl.LightningModule):
         val_idx = self.val_dataloader().class_to_idx
         trn_idx = self.train_dataloader().class_to_idx
 
-
     def _construct_class_hierarchy_graph(self):
         graph = nx.Graph()
         graph.add_node('0')
@@ -93,9 +92,10 @@ class _LSTM(ptl.LightningModule):
         if self.stratified_input:
             weights = self._make_weights_for_balanced_classes(dset.imgs, len(dset.classes))
             weights = torch.DoubleTensor(weights)
+            weights /= weights.sum()
 
             sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights))
-            shuffle = False
+            shuffle = True
 
         else:
             sampler = None
@@ -110,16 +110,16 @@ class _LSTM(ptl.LightningModule):
         count = [0] * nclasses
         for item in images:
             count[item[1]] += 1
-        weight_per_class = [0.] * nclasses
 
+        weight_per_class = [0.] * nclasses
         N = float(sum(count))
         for i in range(nclasses):
             if count[i] > 0:
                 weight_per_class[i] = N / float(count[i])
             else:
                 weight_per_class[i] = 0
-        weight = [0] * len(images)
 
+        weight = [0] * len(images)
         for idx, val in enumerate(images):
             weight[idx] = weight_per_class[val[1]]
 
@@ -199,14 +199,15 @@ class _LSTM(ptl.LightningModule):
         def contingency(pred, target):
             # calc contingency table
             with torch.no_grad():
-                classes, counts = np.unique(pred, return_counts=True)
+                cls, counts = np.unique(pred, return_counts=True)
+                classes = OrderedDict([(c, cls[c]) if c in cls else (c, 0) for c in self._classes.keys()])
 
                 tp_per_cls = {}
                 fp_per_cls = {}
                 fn_per_cls = {}
                 tn_per_cls = {}
 
-                for cls, pred_p_cls in zip(classes, counts):
+                for cls, pred_p_cls in classes.items():
                     inds = np.where(target == cls)[0]
                     p_cls = len(inds)
                     # print(cls, inds, pred.shape, target.shape, target, pred)
