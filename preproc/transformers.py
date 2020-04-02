@@ -67,10 +67,14 @@ class FFT_SAR_timeseries(BaseEstimator, TransformerMixin):
 
 
 class _FixedCombo(object):
-    def __init__(self, edge_cols, transformer, clone=False, *targs, **tkwargs):
+    def __init__(self, edge_cols, transformer, clone=False, ordered_tkwargs=None, *targs, **tkwargs):
+
+        if ordered_tkwargs is None:
+            ordered_tkwargs = {}
 
         if not clone:
-            self.transformers = [transformer(*targs, **tkwargs) for i in range(len(edge_cols) + 1)]
+            self.transformers = [transformer(*targs, **dict(tkwargs, **ordered_tkwargs.get(i, {})))
+                                 for i in range(len(edge_cols) + 1)]
 
         else:
             self.transformers = [skl_clone(transformer) for i in range(len(edge_cols) + 1)]
@@ -114,10 +118,11 @@ class _FixedCombo(object):
 
 
 class VV_VH_Combo(BaseEstimator, TransformerMixin, _FixedCombo):
-    def __init__(self, edge_cols, thr_freq=30, scale=False, normalize_psd=True, quantile_range=(0.25, 0.75), scaler=None, pre_feature_name='', time_step=6/360):
+    def __init__(self, edge_cols, thr_freq=30, scale=False, normalize_psd=True, quantile_range=(0.25, 0.75),
+                 scaler=None, pre_feature_name='', time_step=6/360, ordered_tkwargs=None):
         _FixedCombo.__init__(self, edge_cols, FFT_SAR_timeseries, thr_freq=thr_freq, scale=scale,
                              normalize_psd=normalize_psd, quantile_range=quantile_range, scaler=scaler,
-                             pre_feature_name=pre_feature_name, time_step=time_step)
+                             pre_feature_name=pre_feature_name, time_step=time_step, ordered_tkwargs=ordered_tkwargs)
 
-        for attr in zip(self.transformers[0]._get_param_names():
+        for attr in self.transformers[0]._get_param_names():
             setattr(self, attr, getattr(self.transformers[0], attr))
