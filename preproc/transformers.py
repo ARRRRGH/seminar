@@ -95,7 +95,9 @@ class _FixedCombo(object):
         # TODO: do this in parallel
         ret = []
         for sa, skw, t in zip(spec_args, spec_kwargs, self.transformers):
-            ret.append(getattr(t, method)(*sa, *args, **skw, **kwargs))
+            # make sure there is input when fitting and transforming
+            if 'X' not in spec_kwargs or spec_kwargs.get('X').shape[1] != 0:
+                ret.append(getattr(t, method)(*sa, *args, **skw, **kwargs))
 
         return ret
 
