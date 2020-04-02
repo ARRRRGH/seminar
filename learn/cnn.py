@@ -95,7 +95,7 @@ class _LSTM(ptl.LightningModule):
             weights /= weights.sum()
 
             sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights))
-            shuffle = True
+            shuffle = False
 
         else:
             sampler = None
@@ -196,11 +196,11 @@ class _LSTM(ptl.LightningModule):
     def _calculate_contingency_table(self, pred, target):
         output = {}
 
-        def contingency(pred, target):
+        def contingency(pred, target, all_classes):
             # calc contingency table
             with torch.no_grad():
-                cls, counts = np.unique(pred, return_counts=True)
-                classes = OrderedDict([(c, cls[c]) if c in cls else (c, 0) for c in self._classes.keys()])
+                cls = dict(zip(*np.unique(pred, return_counts=True)))
+                classes = OrderedDict([(c, cls[c]) if c in cls else (c, 0) for c in all_classes])
 
                 tp_per_cls = {}
                 fp_per_cls = {}
@@ -220,7 +220,8 @@ class _LSTM(ptl.LightningModule):
 
         for depth in range(1, self.max_considered_depth):
             tp_per_cls, fp_per_cls, tn_per_cls, fn_per_cls = contingency(np.array([p[:depth] for p in pred]),
-                                                                         np.array([t[:depth] for t in target]))
+                                                                         np.array([t[:depth] for t in target]),
+                                                                         set([c[:depth] for c in self._classes.keys()]))
             output.update({'tp_per_cls_%d' % depth: tp_per_cls})
             output.update({'fn_per_cls_%d' % depth: fn_per_cls})
             output.update({'fp_per_cls_%d' % depth: fp_per_cls})

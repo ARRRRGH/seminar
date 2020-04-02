@@ -97,7 +97,7 @@ class _FixedCombo(object):
 
         # TODO: do this in parallel
         ret = []
-        for i, sa, skw, t in enumerate(zip(spec_args, spec_kwargs, self.transformers)):
+        for i, (sa, skw, t) in enumerate(zip(spec_args, spec_kwargs, self.transformers)):
             if self.is_concerned[i]:
                 ret.append(getattr(t, method)(*sa, *args, **skw, **kwargs))
 
@@ -112,7 +112,7 @@ class _FixedCombo(object):
         return args, kwargs
 
     def get_feature_names(self):
-        return list(itertools.chain(*[t.get_feature_names() for t in self.transformers]))
+        return list(itertools.chain(*[t.get_feature_names() for i, t in enumerate(self.transformers) if self.is_concerned[i]]))
 
     def set_params(self, **kwargs):
         super().set_params(**kwargs)
