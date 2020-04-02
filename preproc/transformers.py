@@ -70,10 +70,10 @@ class _FixedCombo(object):
     def __init__(self, edge_cols, transformer, clone=False, ordered_tkwargs=None, *targs, **tkwargs):
 
         if ordered_tkwargs is None:
-            ordered_tkwargs = {}
+            ordered_tkwargs = [None] * (len(edge_cols) + 1)
 
         if not clone:
-            self.transformers = [transformer(*targs, **dict(tkwargs, **ordered_tkwargs.get(i, {})))
+            self.transformers = [transformer(*targs, **dict(tkwargs, **ordered_tkwargs[i]))
                                  for i in range(len(edge_cols) + 1)]
 
         else:
@@ -122,7 +122,8 @@ class VV_VH_Combo(BaseEstimator, TransformerMixin, _FixedCombo):
                  scaler=None, pre_feature_name='', time_step=6/360, ordered_tkwargs=None):
         _FixedCombo.__init__(self, edge_cols, FFT_SAR_timeseries, thr_freq=thr_freq, scale=scale,
                              normalize_psd=normalize_psd, quantile_range=quantile_range, scaler=scaler,
-                             pre_feature_name=pre_feature_name, time_step=time_step, ordered_tkwargs=ordered_tkwargs)
+                             pre_feature_name=pre_feature_name, time_step=time_step,
+                             ordered_tkwargs=ordered_tkwargs)
 
         for attr in self.transformers[0]._get_param_names():
             setattr(self, attr, getattr(self.transformers[0], attr))
