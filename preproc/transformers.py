@@ -11,7 +11,7 @@ from sklearn.utils.validation import check_is_fitted
 
 
 class FFT_SAR_timeseries(BaseEstimator, TransformerMixin):
-    def __init__(self, thr_freq, scale=False, normalize_psd=True, quantile_range=(0.25, 0.75), time_step=6 / 365):
+    def __init__(self, thr_freq, scale=False, scaler=None, normalize_psd=True, quantile_range=(0.25, 0.75), time_step=6 / 365, pre_feature_name=''):
         super().__init__()
 
         self.thr_freq = thr_freq
@@ -19,11 +19,16 @@ class FFT_SAR_timeseries(BaseEstimator, TransformerMixin):
         self.normalize_psd = normalize_psd
         self.quantile_range = quantile_range
         self.time_step = time_step
+        self.scaler = scaler
+        self.pre_feature_name = pre_feature_name
 
     def fit(self, X, *args, **kwargs):
         if self.scale:
             ret = self._fft(X, fit=True)
-            self.scaler = RobustScaler(self.quantile_range).fit(ret)  # self.scaler = StandardScaler().fit(ret)
+            if self.scaler is None:
+                self.scaler = RobustScaler(self.quantile_range).fit(ret)  # self.scaler = StandardScaler().fit(ret)
+            else:
+                self.scaler = self.scaler.fit(ret)
         else:
             ret = self._fft(X[0:1, :], fit=True)
         return self
@@ -58,7 +63,7 @@ class FFT_SAR_timeseries(BaseEstimator, TransformerMixin):
 
     def get_feature_names(self):
         check_is_fitted(self, ['valid_freq_mask', 'freqs'])
-        return ['%.3f' % str(freq) for freq in self.freqs[self.valid_freq_mask]]
+        return [self.pre_feature_name + '%.3f' % freq for freq in self.freqs[self.valid_freq_mask]]
 
 
 class _FixedCombo(object):
@@ -109,9 +114,10 @@ class _FixedCombo(object):
 
 
 class VV_VH_Combo(BaseEstimator, TransformerMixin, _FixedCombo):
-    def __init__(self, edge_cols, thr_freq=30, scale=False, normalize_psd=True, quantile_range=(0.25, 0.75)):
+    def __init__(self, edge_cols, thr_freq=30, scale=False, normalize_psd=True, quantile_range=(0.25, 0.75), scaler=None, pre_feature_name='', time_step=6/360):
         _FixedCombo.__init__(self, edge_cols, FFT_SAR_timeseries, thr_freq=thr_freq, scale=scale,
-                             normalize_psd=normalize_psd, quantile_range=quantile_range)
+                             normalize_psd=normalize_psd, quantile_range=quantile_range, scaler=scaler,
+                             pre_feature_name=pre_feature_name, time_step=time_step)
 
-        for attr in self.transformers[0]._get_param_names():
+        for attr in zip(self.transformers[0]._get_param_names():
             setattr(self, attr, getattr(self.transformers[0], attr))
