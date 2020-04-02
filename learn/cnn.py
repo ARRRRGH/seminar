@@ -79,7 +79,7 @@ class _LSTM(ptl.LightningModule):
                 graph.add_node(parent_node + new_node)
                 graph.add_edge(parent_node, parent_node + new_node)
 
-    def _get_dataloader(self, path):
+    def _get_dataloader(self, path, is_val=False):
         is_valid_file = lambda path: path.endswith('npy')
 
         if self.reader is None:
@@ -89,7 +89,7 @@ class _LSTM(ptl.LightningModule):
 
         dset = ImageFolder(path, loader=loader, is_valid_file=is_valid_file)
 
-        if self.stratified_input:
+        if self.stratified_input and not is_val:
             weights = self._make_weights_for_balanced_classes(dset.imgs, len(dset.classes))
             weights = torch.DoubleTensor(weights)
             weights /= weights.sum()
@@ -126,10 +126,10 @@ class _LSTM(ptl.LightningModule):
         return weight
 
     def train_dataloader(self):
-        return self._get_dataloader(self.train_image_folder)
+        return self._get_dataloader(self.train_image_folder, is_val=False)
 
     def val_dataloader(self):
-        return self._get_dataloader(self.val_image_folder)
+        return self._get_dataloader(self.val_image_folder, is_val=True)
 
     def configure_optimizers(self):
         return Adam(self.parameters(), lr=self.lr)
