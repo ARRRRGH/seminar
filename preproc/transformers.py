@@ -125,5 +125,6 @@ class VV_VH_Combo(BaseEstimator, TransformerMixin, _FixedCombo):
                              pre_feature_name=pre_feature_name, time_step=time_step,
                              ordered_tkwargs=ordered_tkwargs)
 
+        self.ordered_tkwargs = ordered_tkwargs
         for attr in self.transformers[0]._get_param_names():
             setattr(self, attr, getattr(self.transformers[0], attr))
