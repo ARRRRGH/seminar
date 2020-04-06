@@ -6,8 +6,27 @@ import scipy.fftpack as ff
 
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.base import clone as skl_clone
-from sklearn.preprocessing import RobustScaler, FunctionTransformer, StandardScaler
+from sklearn.preprocessing import RobustScaler, StandardScaler
 from sklearn.utils.validation import check_is_fitted
+
+
+class TransformerSwitch(BaseEstimator, TransformerMixin):
+    def __init__(self, is_on=True, transformer=None):
+        super(TransformerSwitch, self).__init__()
+        self.is_on = is_on
+        self.transformer = transformer
+
+    def fit(self, *args, **kwargs):
+        if self.is_on:
+            return self.transformer.fit(*args, **kwargs)
+        else:
+            return self
+
+    def transform(self, X, *args, **kwargs):
+        if self.is_on:
+            return self.transformer.transform(X, *args, **kwargs)
+        else:
+            return X
 
 
 class FFT_SAR_timeseries(BaseEstimator, TransformerMixin):
