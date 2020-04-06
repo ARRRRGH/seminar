@@ -141,7 +141,7 @@ class _LSTM(ptl.LightningModule):
         tensorboard_logs = {'val_loss': avg_loss, 'std_loss': std_loss}
 
         # calculate binary metrics
-        for depth in range(1, self.max_considered_depth):
+        for depth in range(1, self.max_considered_depth + 1):
 
             classes = set([co[:depth] for co, ci in self._classes.items()])
 
@@ -218,7 +218,7 @@ class _LSTM(ptl.LightningModule):
 
             return tp_per_cls, fp_per_cls, tn_per_cls, fn_per_cls
 
-        for depth in range(1, self.max_considered_depth):
+        for depth in range(1, self.max_considered_depth + 1):
             tp_per_cls, fp_per_cls, tn_per_cls, fn_per_cls = contingency(np.array([p[:depth] for p in pred]),
                                                                          np.array([t[:depth] for t in target]),
                                                                          set([c[:depth] for c in self._classes.keys()]))
@@ -239,6 +239,8 @@ class _LSTM(ptl.LightningModule):
     def training_step(self, batch, batch_idx):
         # data, target = batch
         # loss = self.loss(input=self.forward(data), target=target)
+        # self.train()
+
         loss, _, _ = self.hierarchical_cross_entropy_loss(batch)
         loss = loss.mean()
 
@@ -253,10 +255,13 @@ class _LSTM(ptl.LightningModule):
         # # loss = self.loss(input=self.forward(data), target=self.clsout2clsin(target))
         # nll = - self.logsoft(self.forward(data))
         # loss = nll[torch.arange(len(target)), target]
+        # self.train()
 
         loss, pred, target = self.hierarchical_cross_entropy_loss(batch)
         pred_in, pred_out = pred
         target_in, target_out = target
+
+        # print(pred, target)
 
         tqdm_dict = {'val_loss': loss, 'batch_idx': batch_idx}
         log = {'progress_bar': tqdm_dict, 'log': tqdm_dict}
@@ -276,20 +281,22 @@ class _LSTM(ptl.LightningModule):
 
         preds_in = torch.argmin(nlls, dim=1)
         preds_out = self.clsin2clsout(preds_in)
+        # print(preds_out)
 
         # get shortest path
-        weights = []
-        for pred, target in zip(preds_out, out_targets):
-            dist = nx.shortest_path_length(self._hierarchy_graph,
-                                           '0' + pred,
-                                           '0' + target)
-            layer_dist = max(0, self.max_considered_depth - dist // 2 - 1)
-            layer0_cls = int(str(target)[0]) - 1
-            weights.append(self.hierarchy_weights[layer0_cls, layer_dist])
-            # print(self.hierarchy_weights[layer0_cls, layer_dist], self.max_considered_depth - dist // 2 - 1, pred, target)
+        with torch.no_grad():
+             weights = []
+             for pred, target in zip(preds_out, out_targets):
+                 dist = nx.shortest_path_length(self._hierarchy_graph,
+                                                '0' + pred,
+                                                '0' + target)
+                 layer_dist = max(0, self.max_considered_depth - dist // 2 - 1)
+                 layer0_cls = int(str(target)[0]) - 1
+                 weights.append(self.hierarchy_weights[layer0_cls, layer_dist])
+                 # print(self.hierarchy_weights[layer0_cls, layer_dist], self.max_considered_depth - dist // 2 - 1, pred, target)
 
         return loss * torch.Tensor(weights).requires_grad_(False), (preds_in, preds_out), (in_targets, out_targets)
-
+        # return loss, (preds_in, preds_out), (in_targets, out_targets)
 
 class LSTM(_LSTM):
 
@@ -320,11 +327,12 @@ class LSTM(_LSTM):
 class LSTM2(_LSTM):
 
     def __init__(self, channels, input_shape, hidden_size, embed_size, in_channels, reduce_kernel_size=3, drop_rate=0.5,
-                 *args, **kwargs):
+                 bn_momentum=0.5, bn_track_running_stats=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.encoder = EncoderCNN(channels, embed_size=embed_size, in_channels=in_channels, shape=input_shape,
-                                  drop_rate=drop_rate)
+                                  drop_rate=drop_rate, bn_momentum=bn_momentum,
+                                  bn_track_running_stats=bn_track_running_stats)
         self.decoder = DecoderRNN(embed_size=embed_size, hidden_size=hidden_size, drop_rate=drop_rate)
 
         self.reduce = nn.Conv1d(in_channels=self.seq_len, out_channels=1, kernel_size=reduce_kernel_size,
@@ -348,7 +356,7 @@ class EncoderDense(nn.Module):
         # self.pre1 = nn.Linear(in_features=in_channels, out_features=in_channels // 2)
         # self.pre2 = nn.Linear(in_features=in_channels // 2, out_features=3)
 
-        self.upsample = nn.Upsample(scale_factor=50, mode='bilinear', align_corners=True)
+        self.upsample = nn.Upsample(scale_factor=50, mode='*bilinear', align_corners=True)
         # self.convtr1 = nn.ConvTranspose2d(in_channels=in_channels, out_channels=in_channels*6)
 
         # get the pretrained densenet model
@@ -380,7 +388,8 @@ class EncoderDense(nn.Module):
 
 
 class EncoderCNN(nn.Module):
-    def __init__(self, channels, embed_size=1024, in_channels=8, shape=None, drop_rate=0.5):
+    def __init__(self, channels, embed_size=1024, in_channels=8, shape=None, drop_rate=0.5, bn_momentum=0.5,
+                 bn_track_running_stats=True):
         super().__init__()
 
         # cast to right dimensions
@@ -403,7 +412,8 @@ class EncoderCNN(nn.Module):
         for i, ncl in enumerate(channels):
             self.convs.append(nn.Conv2d(in_channels=last_ncl, out_channels=ncl, kernel_size=3, padding=1))
 
-            self.bns.append(nn.BatchNorm2d(num_features=ncl))
+            self.bns.append(nn.BatchNorm2d(num_features=ncl, momentum=bn_momentum,
+                                           track_running_stats=bn_track_running_stats))
 
             last_ncl = ncl
 
