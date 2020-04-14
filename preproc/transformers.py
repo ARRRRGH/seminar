@@ -153,9 +153,10 @@ class _FixedCombo(object):
 
 
 class Combo(BaseEstimator, TransformerMixin, _FixedCombo):
-    def __init__(self, thr_freq=30, edge_cols=None, is_concerned=None, scale=False, normalize_psd=True,
+    def __init__(self, thr_freq=30, edge_cols=None, len_inp=None, is_concerned=None, scale=False, normalize_psd=True,
                  quantile_range=(0.25, 0.75), scaler=None, pre_feature_name='', time_step=6/360, ordered_tkwargs=None):
         _FixedCombo.__init__(self, edge_cols=edge_cols, transformer=FFT_SAR_timeseries,
+                             len_inp=len_inp,
                              is_concerned=is_concerned, thr_freq=thr_freq, scale=scale,
                              normalize_psd=normalize_psd, quantile_range=quantile_range, scaler=scaler,
                              pre_feature_name=pre_feature_name, time_step=time_step,
