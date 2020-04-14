@@ -111,14 +111,14 @@ class _FixedCombo(object):
 
     def fit(self, X, *args, **kwargs):
         if self.edge_cols is None:
-            self._do_all('fit', spec_kwargs=[{'X': x} for x in X])
+            self._do_all('fit', spec_kwargs=[{'X': X.get(i)} for i in range(len(X))])
         else:
             self._do_all('fit', spec_kwargs=[{'X': x} for x in np.hsplit(X, self.edge_cols)])
         return self
 
     def transform(self, X):
         if self.edge_cols is None:
-            ret = self._do_all('transform', spec_kwargs=[{'X': x} for x in X])
+            ret = self._do_all('transform', spec_kwargs=[{'X': X.get(i)} for i in range(len(X))])
         else:
             ret = self._do_all('transform', spec_kwargs=[{'X': x} for x in np.hsplit(X, self.edge_cols)])
         return np.concatenate(ret, axis=1)
@@ -162,6 +162,7 @@ class Combo(BaseEstimator, TransformerMixin, _FixedCombo):
                              pre_feature_name=pre_feature_name, time_step=time_step,
                              ordered_tkwargs=ordered_tkwargs)
 
+        self.len_inp = len_inp
         self.ordered_tkwargs = ordered_tkwargs
         for attr in self.transformers[0]._get_param_names():
             setattr(self, attr, getattr(self.transformers[0], attr))
