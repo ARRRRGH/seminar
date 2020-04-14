@@ -90,24 +90,24 @@ class _FixedCombo(object):
                  *targs, **tkwargs):
 
         if edge_cols is not None:
-            len_inp = len_inp
+            len_inp = len(edge_cols) + 1
         else:
             assert len_inp is not None
 
         if ordered_tkwargs is None:
-            ordered_tkwargs = [None] * (len_inp + 1)
+            ordered_tkwargs = [None] * len_inp
 
         if not clone:
             self.transformers = [transformer(*targs, **dict(tkwargs, **ordered_tkwargs[i]))
-                                 for i in range(len_inp + 1)]
+                                 for i in range(len_inp)]
 
         else:
-            self.transformers = [skl_clone(transformer) for i in range(len_inp + 1)]
+            self.transformers = [skl_clone(transformer) for i in range(len_inp)]
 
         self.edge_cols = edge_cols
         self.is_concerned = is_concerned
         if self.is_concerned is None:
-            self.is_concerned = [True] * (len_inp + 1)
+            self.is_concerned = [True] * len_inp
 
     def fit(self, X, *args, **kwargs):
         if self.edge_cols is None:
