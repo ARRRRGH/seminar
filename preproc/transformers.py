@@ -86,23 +86,28 @@ class FFT_SAR_timeseries(BaseEstimator, TransformerMixin):
 
 
 class _FixedCombo(object):
-    def __init__(self, transformer, edge_cols=None, is_concerned=None, clone=False, ordered_tkwargs=None,
+    def __init__(self, transformer, edge_cols=None, len_inp=None, is_concerned=None, clone=False, ordered_tkwargs=None,
                  *targs, **tkwargs):
 
+        if edge_cols is not None:
+            len_inp = len_inp
+        else:
+            assert len_inp is not None
+
         if ordered_tkwargs is None:
-            ordered_tkwargs = [None] * (len(edge_cols) + 1)
+            ordered_tkwargs = [None] * (len_inp + 1)
 
         if not clone:
             self.transformers = [transformer(*targs, **dict(tkwargs, **ordered_tkwargs[i]))
-                                 for i in range(len(edge_cols) + 1)]
+                                 for i in range(len_inp + 1)]
 
         else:
-            self.transformers = [skl_clone(transformer) for i in range(len(edge_cols) + 1)]
+            self.transformers = [skl_clone(transformer) for i in range(len_inp + 1)]
 
         self.edge_cols = edge_cols
         self.is_concerned = is_concerned
         if self.is_concerned is None:
-            self.is_concerned = [True] * (len(edge_cols) + 1)
+            self.is_concerned = [True] * (len_inp + 1)
 
     def fit(self, X, *args, **kwargs):
         if self.edge_cols is None:
