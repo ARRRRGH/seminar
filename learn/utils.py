@@ -5,9 +5,11 @@ from functools import partial
 
 try:
     from utils import run_jobs
+    from preproc.transformers import InputList
 except ModuleNotFoundError:
     import seminar
     from seminar.utils import run_jobs
+    from seminar.preproc.transformers import InputList
 
 
 def pred_array(model, inp, arr=None, model_arr=None, batch_size=10000, no_val=-1, n_jobs=6):
@@ -19,7 +21,7 @@ def pred_array(model, inp, arr=None, model_arr=None, batch_size=10000, no_val=-1
         shape = arr.shape
 
     inp_is_list = False
-    if inp is list:
+    if type(inp) is InputList:
         orig_inp = inp
         inp = inp[0]
         inp_is_list = True
@@ -31,7 +33,7 @@ def pred_array(model, inp, arr=None, model_arr=None, batch_size=10000, no_val=-1
         index = batch.index
 
         if inp_is_list:
-            batch = [ip.loc[index].values for ip in orig_inp]
+            batch = InputList([ip.loc[index].values for ip in orig_inp])
         else:
             batch = batch.values
 
