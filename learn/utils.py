@@ -18,12 +18,25 @@ def pred_array(model, inp, arr=None, model_arr=None, batch_size=10000, no_val=-1
     if model_arr is None:
         shape = arr.shape
 
+    inp_is_list = False
+    if inp is list:
+        orig_inp = inp
+        inp = inp[0]
+        inp_is_list = True
+
     # run in multiple batches for memory
     jobs = []
     inds = []
     for batch in np.array_split(inp, min(batch_size, len(inp))):
-        jobs.append(partial(model.predict, batch.values))
-        inds.append(batch.index)
+        index = batch.index
+
+        if inp_is_list:
+            batch = [ip.loc[index].values for ip in orig_inp]
+        else:
+            batch = batch.values
+
+        jobs.append(partial(model.predict, batch))
+        inds.append(index)
 
     out = run_jobs(jobs, n_jobs=n_jobs)
 
