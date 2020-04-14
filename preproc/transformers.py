@@ -86,7 +86,8 @@ class FFT_SAR_timeseries(BaseEstimator, TransformerMixin):
 
 
 class _FixedCombo(object):
-    def __init__(self, edge_cols, transformer, is_concerned=None, clone=False, ordered_tkwargs=None, *targs, **tkwargs):
+    def __init__(self, transformer, edge_cols=None, is_concerned=None, clone=False, ordered_tkwargs=None,
+                 *targs, **tkwargs):
 
         if ordered_tkwargs is None:
             ordered_tkwargs = [None] * (len(edge_cols) + 1)
@@ -104,11 +105,17 @@ class _FixedCombo(object):
             self.is_concerned = [True] * (len(edge_cols) + 1)
 
     def fit(self, X, *args, **kwargs):
-        self._do_all('fit', spec_kwargs=[{'X': x} for x in np.hsplit(X, self.edge_cols)])
+        if self.edge_cols is None:
+            self._do_all('fit', spec_kwargs=[{'X': x} for x in X])
+        else:
+            self._do_all('fit', spec_kwargs=[{'X': x} for x in np.hsplit(X, self.edge_cols)])
         return self
 
     def transform(self, X):
-        ret = self._do_all('transform', spec_kwargs=[{'X': x} for x in np.hsplit(X, self.edge_cols)])
+        if self.edge_cols is None:
+            ret = self._do_all('transform', spec_kwargs=[{'X': x} for x in X])
+        else:
+            ret = self._do_all('transform', spec_kwargs=[{'X': x} for x in np.hsplit(X, self.edge_cols)])
         return np.concatenate(ret, axis=1)
 
     def _do_all(self, method, spec_args=None, spec_kwargs=None, *args, **kwargs):
@@ -140,10 +147,11 @@ class _FixedCombo(object):
             t.set_params(**kwargs)
 
 
-class VV_VH_Combo(BaseEstimator, TransformerMixin, _FixedCombo):
+class Combo(BaseEstimator, TransformerMixin, _FixedCombo):
     def __init__(self, edge_cols, thr_freq=30, is_concerned=None, scale=False, normalize_psd=True,
                  quantile_range=(0.25, 0.75), scaler=None, pre_feature_name='', time_step=6/360, ordered_tkwargs=None):
-        _FixedCombo.__init__(self, edge_cols, FFT_SAR_timeseries, is_concerned, thr_freq=thr_freq, scale=scale,
+        _FixedCombo.__init__(self, edge_cols=edge_cols, transformer=FFT_SAR_timeseries,
+                             is_concerned=is_concerned, thr_freq=thr_freq, scale=scale,
                              normalize_psd=normalize_psd, quantile_range=quantile_range, scaler=scaler,
                              pre_feature_name=pre_feature_name, time_step=time_step,
                              ordered_tkwargs=ordered_tkwargs)
