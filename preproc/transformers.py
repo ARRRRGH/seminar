@@ -10,6 +10,17 @@ from sklearn.preprocessing import RobustScaler, StandardScaler
 from sklearn.utils.validation import check_is_fitted
 
 
+class InputList(object):
+    def __init__(self, list):
+        self.list = list
+
+    def get(self, ind):
+        return self.list[ind]
+
+    def __len__(self):
+        return len(self.list)
+
+
 class TransformerSwitch(BaseEstimator, TransformerMixin):
     def __init__(self, is_on=True, transformer=None):
         super(TransformerSwitch, self).__init__()
@@ -29,8 +40,9 @@ class TransformerSwitch(BaseEstimator, TransformerMixin):
             return X
 
 
-class FFT_SAR_timeseries(BaseEstimator, TransformerMixin):
-    def __init__(self, thr_freq, scale=False, scaler=None, normalize_psd=True, quantile_range=(0.25, 0.75), time_step=6 / 365, pre_feature_name=''):
+class FFTfeatures(BaseEstimator, TransformerMixin):
+    def __init__(self, thr_freq, scale=False, scaler=None, normalize_psd=True, quantile_range=(0.25, 0.75),
+                 time_step=6 / 365, pre_feature_name=''):
         super().__init__()
 
         self.thr_freq = thr_freq
@@ -152,16 +164,25 @@ class _FixedCombo(object):
             t.set_params(**kwargs)
 
 
-class Combo(BaseEstimator, TransformerMixin, _FixedCombo):
+class FFCombo(BaseEstimator, TransformerMixin, _FixedCombo):
     def __init__(self, thr_freq=30, edge_cols=None, len_inp=None, is_concerned=None, scale=False, normalize_psd=True,
                  quantile_range=(0.25, 0.75), scaler=None, pre_feature_name='', time_step=6/360, ordered_tkwargs=None):
-        _FixedCombo.__init__(self, edge_cols=edge_cols, transformer=FFT_SAR_timeseries,
-                             len_inp=len_inp,
-                             is_concerned=is_concerned, thr_freq=thr_freq, scale=scale,
+        _FixedCombo.__init__(self, edge_cols=edge_cols, transformer=FFTfeatures,
+                             len_inp=len_inp, is_concerned=is_concerned, thr_freq=thr_freq, scale=scale,
                              normalize_psd=normalize_psd, quantile_range=quantile_range, scaler=scaler,
                              pre_feature_name=pre_feature_name, time_step=time_step,
                              ordered_tkwargs=ordered_tkwargs)
 
+        self.len_inp = len_inp
         self.ordered_tkwargs = ordered_tkwargs
+        for attr in self.transformers[0]._get_param_names():
+            setattr(self, attr, getattr(self.transformers[0], attr))
+
+
+class FuncTransformerCombo(_FixedCombo):
+    def __init__(self, transformer, len_inp=len_inp, edge_cols=None, is_concerned=None, clone=True, *args, **kwargs):
+        _FixedCombo.__init__(self, edge_cols=edge_cols, len_inp=len_inp, transformer=transformer, is_concerned=is_concerned,
+                             clone=clone, *args, **kwargs)
+
         for attr in self.transformers[0]._get_param_names():
             setattr(self, attr, getattr(self.transformers[0], attr))
