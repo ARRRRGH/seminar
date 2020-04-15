@@ -22,28 +22,27 @@ def pred_array(model, inp, arr=None, model_arr=None, batch_size=10000, no_val=-1
 
     inp_is_list = False
     if type(inp) is InputList:
-        orig_inp = inp
-        inp = inp.get(0)
         inp_is_list = True
 
     # run in multiple batches for memory
     jobs = []
     inds = []
-    for batch in np.array_split(inp, min(batch_size, len(inp))):
-        index = batch.index
 
-        if inp_is_list:
-            batch = InputList([orig_inp.get(i).loc[index].values for i in range(len(orig_inp))])
-        else:
-            batch = batch.values
+    if not inp_is_list:
+        splits = np.array_split(inp, min(batch_size, len(inp)))
+        split = [(batch.values, batch.index) for batch in splits]
+    else:
+        splits = list(zip([np.array_split(ip, min(batch_size, len(inp))) for ip in inp]))
+        split = [(InputList([b.values for b in batch]), batch[0].index) for batch in splits]
 
+    for batch, index in enumerate(split):
         jobs.append(partial(model.predict, batch))
         inds.append(index)
 
     out = run_jobs(jobs, n_jobs=n_jobs)
 
     out_df = pd.DataFrame(columns=['pred'], index=inp.index)
-    out_df = out_df.fillna(-1)
+    out_df = out_df.fillna(no_val)
 
     for i, pred in zip(inds, out):
         out_df.loc[i, 'pred'] = pred
