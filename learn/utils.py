@@ -12,7 +12,7 @@ except ModuleNotFoundError:
     from seminar.preproc.transformers import InputList
 
 
-def pred_array(model, inp, arr=None, model_arr=None, batch_size=10000, no_val=-1, n_jobs=6):
+def pred_array(model, inp, arr=None, model_arr=None, batches=1000, no_val=-1, n_jobs=6):
     assert arr is not None or model_arr is not None
     if arr is None:
         arr = np.ones(model_arr.shape) * no_val
@@ -29,22 +29,25 @@ def pred_array(model, inp, arr=None, model_arr=None, batch_size=10000, no_val=-1
     inds = []
 
     if not inp_is_list:
-        split = [(spl.index, spl.values) for spl in np.array_split(inp, min(batch_size, len(inp)))]
+        splits = [(spl.index, spl.values) for spl in np.array_split(inp, min(batches, len(inp)))]
+        split = lambda : splits
+        orig_index = inp.index
     else:
-        split_model = np.array_split(inp.get(0), min(batch_size, len(inp.get(0))))
+        split_model = np.array_split(inp.get(0), min(batches, len(inp.get(0))))
 
         def split():
             for spl_model in split_model:
-                yield InputList((spl_model.index, InputList([inp.get(j).loc[spl_model.index].values
-                                                             for j in range(len(inp))])))
+                yield (spl_model.index, InputList([inp.get(j).loc[spl_model.index].values
+                                                             for j in range(len(inp))]))
+        orig_index = inp.get(0).index
 
-    for index, batch in split:
+    for index, batch in split():
         jobs.append(partial(model.predict, batch))
         inds.append(index)
 
     out = run_jobs(jobs, n_jobs=n_jobs)
 
-    out_df = pd.DataFrame(columns=['pred'], index=inp.index)
+    out_df = pd.DataFrame(columns=['pred'], index=orig_index)
     out_df = out_df.fillna(no_val)
 
     for i, pred in zip(inds, out):
