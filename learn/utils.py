@@ -23,7 +23,7 @@ def pred_array(model, inp, arr=None, model_arr=None, batch_size=10000, no_val=-1
     inp_is_list = False
     if type(inp) is InputList:
         orig_inp = inp
-        inp = inp[0]
+        inp = inp.get(0)
         inp_is_list = True
 
     # run in multiple batches for memory
@@ -33,7 +33,7 @@ def pred_array(model, inp, arr=None, model_arr=None, batch_size=10000, no_val=-1
         index = batch.index
 
         if inp_is_list:
-            batch = InputList([ip.loc[index].values for ip in orig_inp])
+            batch = InputList([orig_inp.get(i).loc[index].values for i in range(len(orig_inp))])
         else:
             batch = batch.values
 
