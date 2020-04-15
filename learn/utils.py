@@ -29,13 +29,16 @@ def pred_array(model, inp, arr=None, model_arr=None, batch_size=10000, no_val=-1
     inds = []
 
     if not inp_is_list:
-        splits = np.array_split(inp, min(batch_size, len(inp)))
-        split = [(batch.values, batch.index) for batch in splits]
+        split = [(spl.index, spl.values) for spl in np.array_split(inp, min(batch_size, len(inp)))]
     else:
-        splits = list(zip([np.array_split(ip, min(batch_size, len(inp))) for ip in inp]))
-        split = [(InputList([b.values for b in batch]), batch[0].index) for batch in splits]
+        split_model = np.array_split(inp.get(0), min(batch_size, len(inp.get(0))))
 
-    for batch, index in enumerate(split):
+        def split():
+            for spl_model in split_model:
+                yield InputList((spl_model.index, InputList([inp.get(j).loc[spl_model.index].values
+                                                             for j in range(len(inp))])))
+
+    for index, batch in split:
         jobs.append(partial(model.predict, batch))
         inds.append(index)
 

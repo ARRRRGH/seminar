@@ -180,7 +180,7 @@ class FFCombo(BaseEstimator, TransformerMixin, _FixedCombo):
 
 
 class FuncTransformerCombo(_FixedCombo):
-    def __init__(self, transformer, len_inp=len_inp, edge_cols=None, is_concerned=None, clone=True, *args, **kwargs):
+    def __init__(self, transformer, len_inp=None, edge_cols=None, is_concerned=None, clone=True, *args, **kwargs):
         _FixedCombo.__init__(self, edge_cols=edge_cols, len_inp=len_inp, transformer=transformer, is_concerned=is_concerned,
                              clone=clone, *args, **kwargs)
 
