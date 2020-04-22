@@ -75,6 +75,9 @@ class TransformerSwitch(BaseEstimator, TransformerMixin):
         else:
             return X
 
+    def predict(self, X, *args, **kwargs):
+        return self.transformers[self.is_on].predict(X, *args, **kwargs)
+
     def get(self):
         return self.transformers[self.is_on]
 
