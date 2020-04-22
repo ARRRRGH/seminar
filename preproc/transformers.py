@@ -75,6 +75,9 @@ class TransformerSwitch(BaseEstimator, TransformerMixin):
         else:
             return X
 
+    def get(self):
+        return self.transformers[self.is_on]
+
 
 class FFTfeatures(BaseEstimator, TransformerMixin):
     def __init__(self, thr_freq, scale=False, scaler=None, normalize_psd=True, quantile_range=(0.25, 0.75),
