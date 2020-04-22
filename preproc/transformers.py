@@ -17,7 +17,7 @@ class InputList(object):
         if type(lis) is list:
             self.list = lis
         elif type(lis) is OrderedDict:
-            self.list = lis.values()
+            self.list = list(lis.values())
             self.map = lis
 
     def get(self, ind):
