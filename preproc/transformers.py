@@ -17,14 +17,34 @@ class InputList(object):
         if type(lis) is list:
             self.list = lis
             self.map = OrderedDict([(ident, df) for ident, df in enumerate(lis)])
+
+            self.map_inp_name = {i: i for i in range(len(lis))}
+            self.names = list(self.map_inp_name.keys())
+
         elif type(lis) is OrderedDict:
+            self.map_inp_name = {inp_name: out_name for out_name, inp_name in enumerate(lis.keys())}
+            self.names = list(self.map_inp_name.keys())
+
             self.list = list(lis.values())
-            self.map = lis
+            self.map = OrderedDict([(self.map_inp_name[inp_name], lis[inp_name]) for inp_name in lis.keys()])
 
-        self.mapper = np.vectorize(lambda ident: self.map[ident])
+            self.map_inp_name.update({i: i for i in range(len(lis))})
 
-    def get(self, ind):
-        return self.mapper(ind)
+        self.map[None] = None
+
+        self.mapper = np.vectorize(lambda inp_name: self.map_inp_name[inp_name])
+
+    def get(self, *args, outtyp='list'):
+        if outtyp == 'list':
+            lis = [self.map.get(name, None) for name in self.mapper(args)]
+
+            if len(lis) == 1:
+                return lis[0]
+            else:
+                return lis
+
+        elif outtyp == 'dict':
+            return OrderedDict([(name, self.map.get(self.map_inp_name.get(name, None), None)) for name in args])
 
     def __len__(self):
         return len(self.list)

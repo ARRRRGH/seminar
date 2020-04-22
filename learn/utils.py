@@ -11,6 +11,7 @@ except ModuleNotFoundError:
     from seminar.utils import run_jobs
     from seminar.preproc.transformers import InputList
 
+from collections import OrderedDict
 
 def pred_array(model, inp, arr=None, model_arr=None, n_batches=1000, no_val=-1, n_jobs=6):
     assert arr is not None or model_arr is not None
@@ -20,9 +21,7 @@ def pred_array(model, inp, arr=None, model_arr=None, n_batches=1000, no_val=-1, 
     if model_arr is None:
         shape = arr.shape
 
-    inp_is_list = False
-    if type(inp) is InputList:
-        inp_is_list = True
+    inp_is_list = type(inp) is InputList
 
     # run in multiple batches for memory
 
@@ -37,7 +36,7 @@ def pred_array(model, inp, arr=None, model_arr=None, n_batches=1000, no_val=-1, 
 
         def split(n):
             spl_model = split_model[n]
-            inp_list = InputList([(name, df.loc[spl_model.index].values) for name, df in inp.map.items()])
+            inp_list = InputList(OrderedDict([(name, inp.get(name).loc[spl_model.index].values) for name in inp.names if inp.get(name) is not None]))
             return spl_model.index, inp_list
 
         orig_index = inp.get(0).index
