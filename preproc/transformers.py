@@ -9,13 +9,22 @@ from sklearn.base import clone as skl_clone
 from sklearn.preprocessing import RobustScaler, StandardScaler
 from sklearn.utils.validation import check_is_fitted
 
+from collections import OrderedDict
+
 
 class InputList(object):
-    def __init__(self, list):
-        self.list = list
+    def __init__(self, lis):
+        if type(lis) is list:
+            self.list = lis
+        elif type(lis) is OrderedDict:
+            self.list = lis.values()
+            self.map = lis
 
     def get(self, ind):
-        return self.list[ind]
+        if type(ind) is str:
+            return self.map.get(ind, None)
+        else:
+            return self.list[ind]
 
     def __len__(self):
         return len(self.list)
