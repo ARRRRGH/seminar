@@ -16,15 +16,15 @@ class InputList(object):
     def __init__(self, lis):
         if type(lis) is list:
             self.list = lis
+            self.map = OrderedDict([(ident, df) for ident, df in enumerate(lis)])
         elif type(lis) is OrderedDict:
             self.list = lis.values()
             self.map = lis
 
+        self.mapper = np.vectorize(lambda ident: self.map[ident])
+
     def get(self, ind):
-        if type(ind) is str:
-            return self.map.get(ind, None)
-        else:
-            return self.list[ind]
+        return self.mapper(ind)
 
     def __len__(self):
         return len(self.list)
