@@ -15,11 +15,11 @@ from collections import OrderedDict
 class InputList(object):
     def __init__(self, lis):
         if type(lis) is list:
-            self.list = lis
-            self.map = OrderedDict([(ident, df) for ident, df in enumerate(lis)])
-
             self.map_inp_name = {i: i for i in range(len(lis))}
             self.names = list(self.map_inp_name.keys())
+
+            self.list = lis
+            self.map = OrderedDict([(ident, df) for ident, df in enumerate(lis)])
 
         elif type(lis) is OrderedDict:
             self.map_inp_name = {inp_name: out_name for out_name, inp_name in enumerate(lis.keys())}
@@ -28,6 +28,8 @@ class InputList(object):
             self.list = list(lis.values())
             self.map = OrderedDict([(self.map_inp_name[inp_name], lis[inp_name]) for inp_name in lis.keys()])
 
+            # add indices as keys so that get works with name and index,
+            # these additional keys do not appear in self.names
             self.map_inp_name.update({i: i for i in range(len(lis))})
 
         self.map[None] = None
@@ -51,20 +53,25 @@ class InputList(object):
 
 
 class TransformerSwitch(BaseEstimator, TransformerMixin):
-    def __init__(self, is_on=True, transformer=None):
+    def __init__(self, is_on=0, transformers=None):
         super(TransformerSwitch, self).__init__()
         self.is_on = is_on
-        self.transformer = transformer
+        self.transformers = transformers
+
+        if self.transformers is None:
+            self.transformers = [None]
 
     def fit(self, *args, **kwargs):
-        if self.is_on:
-            return self.transformer.fit(*args, **kwargs)
+        transformer = self.transformers[self.is_on]
+        if transformer is not None:
+            return transformer.fit(*args, **kwargs)
         else:
             return self
 
     def transform(self, X, *args, **kwargs):
-        if self.is_on:
-            return self.transformer.transform(X, *args, **kwargs)
+        transformer = self.transformers[self.is_on]
+        if transformer is not None:
+            return transformer.transform(X, *args, **kwargs)
         else:
             return X
 
