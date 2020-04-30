@@ -31,6 +31,8 @@ class InputList(object):
             # add indices as keys so that get works with name and index,
             # these additional keys do not appear in self.names
             self.map_inp_name.update({i: i for i in range(len(lis))})
+        else:
+            raise Exception('Input must be list or OrderedDict.')
 
         self.map[None] = None
 
@@ -49,7 +51,8 @@ class InputList(object):
             return OrderedDict([(name, self.map.get(self.map_inp_name.get(name, None), None)) for name in args])
 
     def __getitem__(self, item):
-        return self.map[item[0]][item[1:]]
+        return InputList([self.map[np.take(item[i], 0)][np.take(item, range(len(item.shape) - 1)]
+                          for i in range(item.shape[0])])
 
     def __len__(self):
         return len(self.list)
