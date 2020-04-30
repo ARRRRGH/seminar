@@ -48,6 +48,9 @@ class InputList(object):
         elif outtyp == 'dict':
             return OrderedDict([(name, self.map.get(self.map_inp_name.get(name, None), None)) for name in args])
 
+    def __getitem__(self, item):
+        return self.map[item[0]][item[1:]]
+
     def __len__(self):
         return len(self.list)
 
