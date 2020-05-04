@@ -27,7 +27,7 @@ use_cuda = torch.cuda.is_available()
 DEVICE = torch.device("cuda" if use_cuda else "cpu")
 
 
-class _LSTM(ptl.LightningModule):
+class _BASE(ptl.LightningModule):
     def __init__(self, train_image_folder, val_image_folder, n_jobs, batch_size, hierarchy_weights,
                  seq_len=None, lr=1e-3, epoch_size=None, reader=None, stratified_input=False):
         super().__init__()
@@ -272,33 +272,79 @@ class _LSTM(ptl.LightningModule):
         output.update(self._calculate_contingency_table(pred_out, target_out))
         return output
 
+    def get_loss_and_pred(self, batch):
+        data, in_targets = batch
+
+        # if is not lstm, duplicate true labels
+        if data.shape[0] != len(in_targets):
+            in_targets = torch.cat([[target] * self.batch_size for target in in_targets])
+
+        nlls = - self.logsoft(self.forward(data))
+        preds_in = torch.argmin(nlls, dim=1)
+
+        reg = torch.zeros((len(preds_in), 1))
+        if hasattr(self, 'reg_invariance') and self.reg_invariance:
+            for i in range(len(preds_in) // self.batch_size - 1):
+                reg[i * self.batch_size: (i+1) * self.batch_size] = self.reg_invariance * \
+                                                                    (len(torch.unique(preds_in)) - 1) / self.batch_size
+
+        loss = nlls[torch.arange(len(in_targets)), in_targets] + reg
+        return loss, preds_in
+
+    def get_weights(self, preds_out, out_targets):
+        # get shortest path
+        with torch.no_grad():
+            weights = []
+            for pred, target in zip(preds_out, out_targets):
+                dist = nx.shortest_path_length(self._hierarchy_graph,
+                                               '0' + pred,
+                                               '0' + target)
+
+            layer_dist = max(0, self.max_considered_depth - dist // 2 - 1)
+            layer0_cls = int(str(target)[0]) - 1
+            weights.append(self.hierarchy_weights[layer0_cls, layer_dist])
+
+        return weights
+
     def hierarchical_cross_entropy_loss(self, batch):
         data, in_targets = batch
         out_targets = self.clsin2clsout(in_targets)
 
-        nlls = - self.logsoft(self.forward(data))
-        loss = nlls[torch.arange(len(in_targets)), in_targets]
-
-        preds_in = torch.argmin(nlls, dim=1)
+        loss, preds_in = self.get_loss_and_pred(batch)
         preds_out = self.clsin2clsout(preds_in)
-        # print(preds_out)
 
-        # get shortest path
-        with torch.no_grad():
-             weights = []
-             for pred, target in zip(preds_out, out_targets):
-                 dist = nx.shortest_path_length(self._hierarchy_graph,
-                                                '0' + pred,
-                                                '0' + target)
-                 layer_dist = max(0, self.max_considered_depth - dist // 2 - 1)
-                 layer0_cls = int(str(target)[0]) - 1
-                 weights.append(self.hierarchy_weights[layer0_cls, layer_dist])
-                 # print(self.hierarchy_weights[layer0_cls, layer_dist], self.max_considered_depth - dist // 2 - 1, pred, target)
-
+        weights = self.get_weights(preds_out, out_targets)
         return loss * torch.Tensor(weights).requires_grad_(False), (preds_in, preds_out), (in_targets, out_targets)
         # return loss, (preds_in, preds_out), (in_targets, out_targets)
 
-class LSTM(_LSTM):
+
+class CNN(_BASE):
+    def __init__(self, input_shape, in_channels, kernel_size, linspace=1024, drop_rate=0.5, bn_momentum=0.5,
+                 bn_track_running_stats=True, reg_invariance=0.5, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.reg_invariance = reg_invariance
+        self.encoder = EncoderCNN(channels=in_channels, embed_size=linspace, in_channels=in_channels, shape=input_shape,
+                                  drop_rate=drop_rate, kernel_size=kernel_size, bn_momentum=bn_momentum,
+                                  bn_track_running_stats=bn_track_running_stats)
+
+        self.to_class = nn.Linear(in_features=linspace, out_features=len(self._classes))
+
+    def forward(self, x):
+        encs = []
+        for t in range(x.shape[1]):
+            encs.append(self.encoder(x[:, t, :, :, :]))
+
+        rets = []
+        for t in encs:
+            rets.append(torch.sigmoid(self.to_class(t)))
+
+        # now stack in batch dimension
+        rets = torch.stack(rets, dim=0)
+        return rets
+
+
+class LSTM(_BASE):
 
     def __init__(self, input_shape, in_channels, hidden_channels, kernel_size, num_layers, bias=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -324,14 +370,14 @@ class LSTM(_LSTM):
         return self.linear_head(torch.max(output, dim=1)[0])
 
 
-class LSTM2(_LSTM):
+class LSTM2(_BASE):
 
     def __init__(self, channels, input_shape, hidden_size, embed_size, in_channels, reduce_kernel_size=3, drop_rate=0.5,
-                 bn_momentum=0.5, bn_track_running_stats=True, *args, **kwargs):
+                 bn_momentum=0.5, bn_track_running_stats=True, kernel_size=5, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.encoder = EncoderCNN(channels, embed_size=embed_size, in_channels=in_channels, shape=input_shape,
-                                  drop_rate=drop_rate, bn_momentum=bn_momentum,
+                                  drop_rate=drop_rate, bn_momentum=bn_momentum, kernel_size=kernel_size,
                                   bn_track_running_stats=bn_track_running_stats)
 
         self.decoder = DecoderRNN(embed_size=embed_size, hidden_size=hidden_size, drop_rate=drop_rate)
@@ -390,7 +436,7 @@ class EncoderDense(nn.Module):
 
 class EncoderCNN(nn.Module):
     def __init__(self, channels, embed_size=1024, in_channels=8, shape=None, drop_rate=0.5, bn_momentum=0.5,
-                 bn_track_running_stats=True):
+                 bn_track_running_stats=True, kernel_size=5):
         super().__init__()
 
         # cast to right dimensions
@@ -411,10 +457,10 @@ class EncoderCNN(nn.Module):
         self.bns = nn.ModuleList()
         last_ncl = in_channels
         for i, ncl in enumerate(channels):
-            self.convs.append(nn.Conv2d(in_channels=last_ncl, out_channels=ncl, kernel_size=3, padding=1))
-
-            self.bns.append(nn.BatchNorm2d(num_features=ncl, momentum=bn_momentum,
+            self.bns.append(nn.BatchNorm2d(num_features=last_ncl, momentum=bn_momentum,
                                            track_running_stats=bn_track_running_stats))
+
+            self.convs.append(nn.Conv2d(in_channels=last_ncl, out_channels=ncl, kernel_size=kernel_size, padding=1))
 
             last_ncl = ncl
 
@@ -436,7 +482,7 @@ class EncoderCNN(nn.Module):
 
         outs = images
         for bn, conv in zip(self.bns, self.convs):
-            outs = torch.relu(bn(conv(outs)))
+            outs = torch.relu(conv(bn(outs)))
 
         # outs = self.pre1(outs.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
         outs = self.dropout(outs).flatten(1)
