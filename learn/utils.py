@@ -4,6 +4,7 @@ import pandas as pd
 from functools import partial
 import copy
 from sklearn.metrics import adjusted_mutual_info_score, adjusted_rand_score, fowlkes_mallows_score
+import itertools as it
 
 try:
     from utils import run_jobs
@@ -91,7 +92,7 @@ class InputListSplitter(object):
 
     def get_n_splits(self, X, y=None, groups=None):
         return self.n_splits
-    
+
 
 class GridSearch(object):
     score_dict = {'adjusted_rand_score': adjusted_rand_score, 'adjusted_mutual_info_score': adjusted_mutual_info_score,
