@@ -69,6 +69,30 @@ def pred_array(model, inp, arr=None, model_arr=None, n_batches=1000, no_val=-1, 
     return arr, out_df
 
 
+class InputListSplitter(object):
+    def split(self, n_splits, X, slic=slice):
+        step = len(X) // n_splits
+        for i in range(n_splits):
+            yield slic(i * step, (i+1) * step)
+
+    def get_cvs(self, cv, X):
+        splits = list(self.split(cv, X, slic=np.arange))
+
+        cvs = []
+        all_n = set(range(cv))
+        for i in all_n:
+            train = all_n - {i}
+            train_inds = np.concatenate([splits[j] for j in train])
+            test_inds = splits[i]
+
+            cvs.append((train_inds, test_inds))
+
+        return cvs
+
+    def get_n_splits(self, X, y=None, groups=None):
+        return self.n_splits
+    
+
 class GridSearch(object):
     score_dict = {'adjusted_rand_score': adjusted_rand_score, 'adjusted_mutual_info_score': adjusted_mutual_info_score,
                   'fowlkes_mallows_score': fowlkes_mallows_score}
