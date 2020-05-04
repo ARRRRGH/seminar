@@ -4,10 +4,14 @@ import itertools
 from scipy import signal
 import scipy.fftpack as ff
 
+from scipy import sparse
+
+import sklearn as skl
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.base import clone as skl_clone
 from sklearn.preprocessing import RobustScaler, StandardScaler
 from sklearn.utils.validation import check_is_fitted
+from sklearn.pipeline import FeatureUnion
 
 from collections import OrderedDict
 
@@ -37,6 +41,8 @@ class InputList(object):
         self.map[None] = None
 
         self.mapper = np.vectorize(lambda inp_name: self.map_inp_name[inp_name])
+        self.nr_inputs = len(self.list)
+        # self.shape = (self.nr_inputs, len(self), None)
 
     def get(self, *args, outtyp='list'):
         if outtyp == 'list':
@@ -51,16 +57,26 @@ class InputList(object):
             return OrderedDict([(name, self.map.get(self.map_inp_name.get(name, None), None)) for name in args])
 
     def __getitem__(self, item):
-        return InputList([self.map[np.take(item[i], 0)][np.take(item, range(len(item.shape) - 1)]
-                          for i in range(item.shape[0])])
+        if not type(item) is tuple:
+            return InputList(OrderedDict([(key, self.list[self.map_inp_name[key]][item]) for key in self.names]))
+        # item = np.atleast_2d(item)
+        return InputList(OrderedDict([(self.names[it[0]], self.map[it[0]][it[1:]]) for it in item]))
+
 
     def __len__(self):
-        return len(self.list)
+        return self.list[0].shape[0]
+
+
+class DynamicFeatureUnion(FeatureUnion):
+    def _parallel_func(self, *args, **kwargs):
+        self.transformer_list = [(key, transformer) if not isinstance(transformer, TransformerSwitch) or transformer == 'drop' or transformer is None
+                                 else (key, transformer.get()) for key, transformer in self.transformer_list]
+        return super()._parallel_func(*args, **kwargs)
 
 
 class TransformerSwitch(BaseEstimator, TransformerMixin):
-    def __init__(self, is_on=0, transformers=None):
-        super(TransformerSwitch, self).__init__()
+    def __init__(self, is_on=0, transformers=None, memory=None):
+        # super(TransformerSwitch, self).__init__()
         self.is_on = is_on
         self.transformers = transformers
 
@@ -69,17 +85,21 @@ class TransformerSwitch(BaseEstimator, TransformerMixin):
 
     def fit(self, *args, **kwargs):
         transformer = self.transformers[self.is_on]
-        if transformer is not None:
-            return transformer.fit(*args, **kwargs)
+        if transformer is not None or transformer == 'drop':
+            ret = transformer.fit(*args, **kwargs)
+            return ret
         else:
             return self
 
     def transform(self, X, *args, **kwargs):
         transformer = self.transformers[self.is_on]
-        if transformer is not None:
+        if transformer is not None or transformer == 'drop':
             return transformer.transform(X, *args, **kwargs)
         else:
             return X
+
+    def fit_predict(self, X, *args, **kwargs):
+         return self.transformers[self.is_on].fit_predict(X, *args, **kwargs)
 
     def predict(self, X, *args, **kwargs):
         return self.transformers[self.is_on].predict(X, *args, **kwargs)
@@ -87,10 +107,27 @@ class TransformerSwitch(BaseEstimator, TransformerMixin):
     def get(self):
         return self.transformers[self.is_on]
 
+    def set_params(self, **kwargs):
+        if 'is_on' in kwargs:
+            self.is_on = kwargs['is_on']
+            kwargs = {key: val for key, val in kwargs.items() if not key.startswith('is_on')}
+        if self.get() is not None or transformer == 'drop':
+            return self.get().set_params(**kwargs)
+        else:
+            return None
+
+    #def get_params(self, *args, **kwargs):
+        #if 'is_on' in kwargs:
+        #    self.is_on = kwargs['is_on']
+        #    del kwargs['is_on']
+        #if self.get() is None:
+        #return {'is_on': self.is_on, 'transformers': self.transformers}
+        #return self.get().get_params(*args, **kwargs)
+
 
 class FFTfeatures(BaseEstimator, TransformerMixin):
     def __init__(self, thr_freq, scale=False, scaler=None, normalize_psd=True, quantile_range=(0.25, 0.75),
-                 time_step=6 / 365, pre_feature_name=''):
+                 time_step=6 / 365, pre_feature_name='', memory=None):
         super().__init__()
 
         self.thr_freq = thr_freq
@@ -100,6 +137,7 @@ class FFTfeatures(BaseEstimator, TransformerMixin):
         self.time_step = time_step
         self.scaler = scaler
         self.pre_feature_name = pre_feature_name
+        self.memory = memory
 
     def fit(self, X, *args, **kwargs):
         if self.scale:
@@ -171,14 +209,14 @@ class _FixedCombo(object):
 
     def fit(self, X, *args, **kwargs):
         if self.edge_cols is None:
-            self._do_all('fit', spec_kwargs=[{'X': X.get(i)} for i in range(len(X))])
+            self._do_all('fit', spec_kwargs=[{'X': X.get(i)} for i in range(X.nr_inputs)])
         else:
             self._do_all('fit', spec_kwargs=[{'X': x} for x in np.hsplit(X, self.edge_cols)])
         return self
 
     def transform(self, X):
         if self.edge_cols is None:
-            ret = self._do_all('transform', spec_kwargs=[{'X': X.get(i)} for i in range(len(X))])
+            ret = self._do_all('transform', spec_kwargs=[{'X': X.get(i)} for i in range(X.nr_inputs)])
         else:
             ret = self._do_all('transform', spec_kwargs=[{'X': x} for x in np.hsplit(X, self.edge_cols)])
         return np.concatenate(ret, axis=1)
@@ -206,15 +244,19 @@ class _FixedCombo(object):
         return list(itertools.chain(*[t.get_feature_names() for i, t in enumerate(self.transformers) if self.is_concerned[i]]))
 
     def set_params(self, **kwargs):
-        super().set_params(**kwargs)
+        #super().set_params(**kwargs)
 
         for t in self.transformers:
             t.set_params(**kwargs)
 
+    def get_params(self, *args, **kwargs):
+        # all transformers are supposed to have the same parameters
+        return self.transformers[0].get_params(*args, **kwargs)
+
 
 class FFCombo(BaseEstimator, TransformerMixin, _FixedCombo):
     def __init__(self, thr_freq=30, edge_cols=None, len_inp=None, is_concerned=None, scale=False, normalize_psd=True,
-                 quantile_range=(0.25, 0.75), scaler=None, pre_feature_name='', time_step=6/360, ordered_tkwargs=None):
+                 quantile_range=(0.25, 0.75), scaler=None, pre_feature_name='', time_step=6/360, ordered_tkwargs=None, memory=None):
         _FixedCombo.__init__(self, edge_cols=edge_cols, transformer=FFTfeatures,
                              len_inp=len_inp, is_concerned=is_concerned, thr_freq=thr_freq, scale=scale,
                              normalize_psd=normalize_psd, quantile_range=quantile_range, scaler=scaler,
@@ -230,7 +272,7 @@ class FFCombo(BaseEstimator, TransformerMixin, _FixedCombo):
 class FuncTransformerCombo(_FixedCombo):
     def __init__(self, transformer, len_inp=None, edge_cols=None, is_concerned=None, clone=True, *args, **kwargs):
         _FixedCombo.__init__(self, edge_cols=edge_cols, len_inp=len_inp, transformer=transformer, is_concerned=is_concerned,
-                             clone=clone, *args, **kwargs)
+                             clone=clone, memory=None, *args, **kwargs)
 
         for attr in self.transformers[0]._get_param_names():
             setattr(self, attr, getattr(self.transformers[0], attr))

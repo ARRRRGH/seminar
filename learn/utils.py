@@ -13,7 +13,7 @@ except ModuleNotFoundError:
 
 from collections import OrderedDict
 
-def pred_array(model, inp, arr=None, model_arr=None, n_batches=1000, no_val=-1, n_jobs=6):
+def pred_array(model, inp, arr=None, model_arr=None, n_batches=1000, no_val=-1, n_jobs=6, *args, **kwargs):
     assert arr is not None or model_arr is not None
     if arr is None:
         arr = np.ones(model_arr.shape) * no_val
@@ -50,12 +50,12 @@ def pred_array(model, inp, arr=None, model_arr=None, n_batches=1000, no_val=-1, 
     for j in range(n_batches):
         jobs.append(partial(predict_batch, nth_batch=j))
 
-    res = run_jobs(jobs, n_jobs=n_jobs)
+    res = run_jobs(jobs, n_jobs=n_jobs, *args, **kwargs)
 
     out_df = pd.DataFrame(columns=['pred'], index=orig_index)
     out_df = out_df.fillna(no_val)
 
-    for i, pred in res:
+    for i, pred in res[0]:
         out_df.loc[i, 'pred'] = pred
         arr[np.unravel_index(i, shape)] = pred
 
