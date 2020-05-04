@@ -126,7 +126,7 @@ class GridSearch(object):
                         estimator=copy.deepcopy(self.estimator), run_ident=i, param_ident=j, verbose=verbose)
                 for i, (train, test) in enumerate(inds) for j, params in enumerate(self.param_dicts)]
 
-        res = run_jobs(jobs, *args, **kwargs)[0]
+        res = run_jobs(jobs, verbose=verbose, *args, **kwargs)[0]
         res = np.stack(res, axis=1)
 
         param_idents = [{int(pid): np.where(res[i, :, 0] == pid)[0] for pid in np.unique(res[i, :, 0])} for i in range(len(ys))]
