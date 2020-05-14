@@ -4,25 +4,26 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 
 try:
-    from learn.utils import train_predict_conf, contingency_distance, simulated_annealing
+    from learn.utils import train_predict_conf, contingency_distance, simulated_annealing, validate
 except ModuleNotFoundError:
     import seminar
-    from seminar.learn.utils import train_predict_conf, contingency_distance, simulated_annealing
+    from seminar.learn.utils import train_predict_conf, contingency_distance, simulated_annealing, validate
 
 
-def cluster_based_classif(samples, gt_samples, pip, gtr, n_clusters, score, nan_val=-1, freq_weighted=True,
+def cluster_based_classif(samples, gt_samples, pip, n_clusters, score, nan_val=-1, freq_weighted=True,
                           annealing_params={}):
 
     _ = pip.fit(samples)
-    
+    clf = pip.predict(samples)
+    valids, conf = validate(clf, gt_samples)
 
-    gtr_labels = np.unique(gtr.data[valids])
+    gtr_labels = np.unique(gt_samples.data[valids])
     cluster_labels = np.unique(clf.data[valids])
     labels = np.r_[cluster_labels, gtr_labels]
 
     max_assignment = labels[np.argmax(conf, axis=0)][:n_clusters]
 
-    label_set, label_counts = np.unique(gtr.data, return_counts=True)
+    label_set, label_counts = np.unique(gt_samples.data, return_counts=True)
 
     # take out -1
     valid_idx = np.where(label_set != nan_val)

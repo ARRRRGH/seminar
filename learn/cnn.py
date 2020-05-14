@@ -347,7 +347,8 @@ class CNN(_BASE):
 
 class LSTM(_BASE):
 
-    def __init__(self, input_shape, in_channels, hidden_channels, kernel_size, num_layers, bias=True, reduce_channels=5, reduce_hidden=1, *args, **kwargs):
+    def __init__(self, input_shape, in_channels, hidden_channels, kernel_size, num_layers, bias=True, reduce_channels=5,
+                 reduce_hidden=1, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.lstm = ConvLSTM(in_channels, hidden_channels, kernel_size, num_layers, batch_first=True, bias=bias,
@@ -360,7 +361,8 @@ class LSTM(_BASE):
         hidden_size = hidden_channels[-1] * int(np.prod(input_shape))
 
         self.linear_head = nn.Linear(in_features=hidden_size * reduce_channels, out_features=len(self._classes))
-        self.reduce = nn.Conv2d(in_channels=1, out_channels=reduce_channels, kernel_size=(reduce_hidden, self.seq_len), stride=1, padding=(reduce_hidden // 2, 0))
+        self.reduce = nn.Conv2d(in_channels=1, out_channels=reduce_channels, kernel_size=(reduce_hidden, self.seq_len),
+                                stride=1, padding=(reduce_hidden // 2, 0))
 
     def forward(self, x):
         h, c = self.lstm(x)
