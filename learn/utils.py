@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from functools import partial
 import copy
-from sklearn.metrics import adjusted_mutual_info_score, adjusted_rand_score, fowlkes_mallows_score
+from sklearn.metrics import adjusted_mutual_info_score, adjusted_rand_score, fowlkes_mallows_score, v_measure_score
 import itertools as it
 
 try:
@@ -40,7 +40,7 @@ def pred_array(model, inp, arr=None, model_arr=None, n_batches=1000, no_val=-1, 
 
         def split(n):
             spl_model = split_model[n]
-            inp_list = InputList(OrderedDict([(name, inp.get(name).loc[spl_model.index].values) for name in inp.names if inp.get(name) is not None]))
+            inp_list = InputList(OrderedDict([(name, inp.get(name).loc[spl_model.index]) for name in inp.names if inp.get(name) is not None]))
             return spl_model.index, inp_list
 
         orig_index = inp.get(0).index
@@ -96,7 +96,7 @@ class InputListSplitter(object):
 
 class GridSearch(object):
     score_dict = {'adjusted_rand_score': adjusted_rand_score, 'adjusted_mutual_info_score': adjusted_mutual_info_score,
-                  'fowlkes_mallows_score': fowlkes_mallows_score}
+                  'fowlkes_mallows_score': fowlkes_mallows_score, 'v_measure_score': v_measure_score}
 
     def __init__(self, estimator, parameter_grid, cv=5, scores=None):
         self.estimator = estimator

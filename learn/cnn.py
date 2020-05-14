@@ -275,14 +275,14 @@ class _BASE(ptl.LightningModule):
     def get_loss_and_pred(self, batch):
         data, in_targets = batch
 
-        # if is not lstm, duplicate true labels
-        if data.shape[0] != len(in_targets):
-            in_targets = torch.cat([[target] * self.batch_size for target in in_targets])
-
         nlls = - self.logsoft(self.forward(data))
         preds_in = torch.argmin(nlls, dim=1)
 
-        reg = torch.zeros((len(preds_in), 1))
+        # if is not lstm, duplicate true labels
+        if data.shape[0] != preds_in.shape[0]:
+           in_targets = torch.cat([torch.Tensor([target] * self.seq_len) for target in in_targets]).long()
+
+        reg = torch.zeros(len(preds_in))
         if hasattr(self, 'reg_invariance') and self.reg_invariance:
             for i in range(len(preds_in) // self.batch_size - 1):
                 reg[i * self.batch_size: (i+1) * self.batch_size] = self.reg_invariance * \
@@ -319,12 +319,12 @@ class _BASE(ptl.LightningModule):
 
 
 class CNN(_BASE):
-    def __init__(self, input_shape, in_channels, kernel_size, linspace=1024, drop_rate=0.5, bn_momentum=0.5,
+    def __init__(self, channels, input_shape, in_channels, kernel_size, linspace=1024, drop_rate=0.5, bn_momentum=0.5,
                  bn_track_running_stats=True, reg_invariance=0.5, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.reg_invariance = reg_invariance
-        self.encoder = EncoderCNN(channels=in_channels, embed_size=linspace, in_channels=in_channels, shape=input_shape,
+        self.encoder = EncoderCNN(channels=channels, embed_size=linspace, in_channels=in_channels, shape=input_shape,
                                   drop_rate=drop_rate, kernel_size=kernel_size, bn_momentum=bn_momentum,
                                   bn_track_running_stats=bn_track_running_stats)
 
@@ -340,23 +340,27 @@ class CNN(_BASE):
             rets.append(torch.sigmoid(self.to_class(t)))
 
         # now stack in batch dimension
-        rets = torch.stack(rets, dim=0)
+        rets = torch.cat(rets, dim=0)
+        print(rets.shape)
         return rets
 
 
 class LSTM(_BASE):
 
-    def __init__(self, input_shape, in_channels, hidden_channels, kernel_size, num_layers, bias=True, *args, **kwargs):
+    def __init__(self, input_shape, in_channels, hidden_channels, kernel_size, num_layers, bias=True, reduce_channels=5, reduce_hidden=1, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.lstm = ConvLSTM(in_channels, hidden_channels, kernel_size, num_layers, batch_first=True, bias=bias,
                              return_all_layers=False)
 
         padding = kernel_size[-1][0] // 2, kernel_size[-1][1] // 2
-        self.conv = nn.Conv2d(in_channels=hidden_channels[-1], kernel_size=kernel_size[-1], out_channels=1,
-                              padding=padding)
+        #self.conv = nn.Conv2d(in_channels=hidden_channels[-1], kernel_size=kernel_size[-1], out_channels=1,
+        #                      padding=padding)
 
-        self.linear_head = nn.Linear(in_features=int(np.prod(input_shape)), out_features=len(self._classes))
+        hidden_size = hidden_channels[-1] * int(np.prod(input_shape))
+
+        self.linear_head = nn.Linear(in_features=hidden_size * reduce_channels, out_features=len(self._classes))
+        self.reduce = nn.Conv2d(in_channels=1, out_channels=reduce_channels, kernel_size=(reduce_hidden, self.seq_len), stride=1, padding=(reduce_hidden // 2, 0))
 
     def forward(self, x):
         h, c = self.lstm(x)
@@ -364,16 +368,19 @@ class LSTM(_BASE):
 
         output = []
         for t in range(h.shape[1]):
-            output.append(self.conv(h[:, t, :, :, :]).flatten(1))
+            output.append(h[:, t, :, :, :].flatten(1))
+        out_hidden_states = torch.stack(output, dim=1)
 
-        output = torch.stack(output, dim=1)
-        return self.linear_head(torch.max(output, dim=1)[0])
+        #print(out_hidden_states.shape)
+        red = self.reduce(out_hidden_states.permute(0, 2, 1).unsqueeze(1)).squeeze(-1).flatten(1)
+        #print(red.shape)
+        return self.linear_head(torch.sigmoid(red))
 
 
 class LSTM2(_BASE):
 
     def __init__(self, channels, input_shape, hidden_size, embed_size, in_channels, reduce_kernel_size=3, drop_rate=0.5,
-                 bn_momentum=0.5, bn_track_running_stats=True, kernel_size=5, *args, **kwargs):
+                 bn_momentum=0.5, bn_track_running_stats=True, kernel_size=5, reduce_hidden=2,  reduce_groups=1, reduce_step=1, reduce_channels=5, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.encoder = EncoderCNN(channels, embed_size=embed_size, in_channels=in_channels, shape=input_shape,
@@ -382,17 +389,24 @@ class LSTM2(_BASE):
 
         self.decoder = DecoderRNN(embed_size=embed_size, hidden_size=hidden_size, drop_rate=drop_rate)
 
-        self.reduce = nn.Conv1d(in_channels=self.seq_len, out_channels=1, kernel_size=reduce_kernel_size,
-                                padding=reduce_kernel_size // 2)
-        self.linear_head = nn.Linear(in_features=hidden_size, out_features=len(self._classes))
+        #self.reduce = nn.Conv1d(in_channels=hidden_size, out_channels=hidden_size // reduce_hidden, groups=reduce_groups, kernel_size=reduce_kernel_size,
+        #                        padding=reduce_kernel_size // 2)
+        #self.reduce2 = nn.Linear(in_features=self.seq_len, out_features=1)
+        self.reduce = nn.Conv2d(in_channels=1, out_channels=reduce_channels, kernel_size=(reduce_hidden, self.seq_len), stride=1, padding=(reduce_hidden // 2, 0))
+        self.linear_head = nn.Linear(in_features=hidden_size * reduce_channels, out_features=len(self._classes))
+
 
     def forward(self, x):
         encs = []
         for t in range(x.shape[1]):
             encs.append(self.encoder(x[:, t, :, :, :]))
-        out_hidden_states = self.decoder(torch.stack(encs, dim=1))
+        out_hidden_states = torch.relu(self.decoder(torch.stack(encs, dim=1)))
 
-        return self.linear_head(torch.sigmoid(self.reduce(out_hidden_states).squeeze(1)))
+        #red = torch.relu(self.reduce(out_hidden_states.permute(0, 2, 1))).squeeze(-1)
+        #red = self.reduce2(red).squeeze(-1)
+
+        red = self.reduce(out_hidden_states.permute(0, 2, 1).unsqueeze(1)).squeeze(-1).flatten(1)
+        return self.linear_head(torch.sigmoid(red))
 
 
 class EncoderDense(nn.Module):
@@ -460,7 +474,7 @@ class EncoderCNN(nn.Module):
             self.bns.append(nn.BatchNorm2d(num_features=last_ncl, momentum=bn_momentum,
                                            track_running_stats=bn_track_running_stats))
 
-            self.convs.append(nn.Conv2d(in_channels=last_ncl, out_channels=ncl, kernel_size=kernel_size, padding=1))
+            self.convs.append(nn.Conv2d(in_channels=last_ncl, out_channels=ncl, kernel_size=kernel_size, padding=kernel_size//2))
 
             last_ncl = ncl
 

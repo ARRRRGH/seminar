@@ -57,11 +57,16 @@ class InputList(object):
             return OrderedDict([(name, self.map.get(self.map_inp_name.get(name, None), None)) for name in args])
 
     def __getitem__(self, item):
-        if not type(item) is tuple:
-            return InputList(OrderedDict([(key, self.list[self.map_inp_name[key]][item]) for key in self.names]))
+        if hasattr(self.list[0], 'iloc'):
+            if not type(item) is tuple:
+                 return InputList(OrderedDict([(key, self.list[self.map_inp_name[key]].iloc[item]) for key in self.names]))
         # item = np.atleast_2d(item)
-        return InputList(OrderedDict([(self.names[it[0]], self.map[it[0]][it[1:]]) for it in item]))
-
+            return InputList(OrderedDict([(self.names[it[0]], self.map[it[0]].iloc[it[1:]]) for it in item]))
+        else:
+             if not type(item) is tuple:
+                 return InputList(OrderedDict([(key, self.list[self.map_inp_name[key]][item]) for key in self.names]))
+         # item = np.atleast_2d(item)
+             return InputList(OrderedDict([(self.names[it[0]], self.map[it[0]][it[1:]]) for it in item]))
 
     def __len__(self):
         return self.list[0].shape[0]
@@ -69,13 +74,29 @@ class InputList(object):
 
 class DynamicFeatureUnion(FeatureUnion):
     def _parallel_func(self, *args, **kwargs):
-        self.transformer_list = [(key, transformer) if not isinstance(transformer, TransformerSwitch) or transformer == 'drop' or transformer is None
-                                 else (key, transformer.get()) for key, transformer in self.transformer_list]
+        self.update_transformer_list_()
         return super()._parallel_func(*args, **kwargs)
+
+    def update_transformer_list_(self):
+        self.transformer_list = [(key, transformer) if not isinstance(transformer, TransformerSwitch) or transformer == 'drop' or transformer is None
+                                  else (key, transformer.get()) for key, transformer in self.transformer_list]
+
+    def transform(self, X, *args, **kwargs):
+        if np.any([a is not None and a != 'drop' for key, a in self.transformer_list]):
+            return super().transform(X, *args, **kwargs)
+        else:
+            return np.zeros((X.list[0].shape[0], 0))
+
+    def fit_transform(self, X, *args, **kwargs):
+         self.update_transformer_list_()
+         if np.any([a is not None and a != 'drop' for key, a in self.transformer_list]):
+             return super().fit_transform(X, *args, **kwargs)
+         else:
+             return np.zeros((X.list[0].shape[0], 0))
 
 
 class TransformerSwitch(BaseEstimator, TransformerMixin):
-    def __init__(self, is_on=0, transformers=None, memory=None):
+    def __init__(self, is_on=0, transformers=None, memory=None, transparent=False):
         # super(TransformerSwitch, self).__init__()
         self.is_on = is_on
         self.transformers = transformers
@@ -83,9 +104,11 @@ class TransformerSwitch(BaseEstimator, TransformerMixin):
         if self.transformers is None:
             self.transformers = [None]
 
+        self.transparent = transparent
+
     def fit(self, *args, **kwargs):
         transformer = self.transformers[self.is_on]
-        if transformer is not None or transformer == 'drop':
+        if transformer is not None and transformer != 'drop':
             ret = transformer.fit(*args, **kwargs)
             return ret
         else:
@@ -93,16 +116,21 @@ class TransformerSwitch(BaseEstimator, TransformerMixin):
 
     def transform(self, X, *args, **kwargs):
         transformer = self.transformers[self.is_on]
-        if transformer is not None or transformer == 'drop':
+        if transformer is not None and transformer != 'drop':
             return transformer.transform(X, *args, **kwargs)
-        else:
+        elif self.transparent:
             return X
+        else:
+            return np.zeros((X.shape[0], 0))
+
+    def fit_transform(self, X, y, *args, **kwargs):
+        return self.fit(X, y, *args, **kwargs).transform(X)
 
     def fit_predict(self, X, *args, **kwargs):
-         return self.transformers[self.is_on].fit_predict(X, *args, **kwargs)
+         return self.get().fit_predict(X, *args, **kwargs)
 
     def predict(self, X, *args, **kwargs):
-        return self.transformers[self.is_on].predict(X, *args, **kwargs)
+        return self.get().predict(X, *args, **kwargs)
 
     def get(self):
         return self.transformers[self.is_on]
@@ -111,7 +139,8 @@ class TransformerSwitch(BaseEstimator, TransformerMixin):
         if 'is_on' in kwargs:
             self.is_on = kwargs['is_on']
             kwargs = {key: val for key, val in kwargs.items() if not key.startswith('is_on')}
-        if self.get() is not None or transformer == 'drop':
+        if self.get() is not None and self.get() != 'drop':
+            print('here', self.get())
             return self.get().set_params(**kwargs)
         else:
             return None
@@ -219,7 +248,11 @@ class _FixedCombo(object):
             ret = self._do_all('transform', spec_kwargs=[{'X': X.get(i)} for i in range(X.nr_inputs)])
         else:
             ret = self._do_all('transform', spec_kwargs=[{'X': x} for x in np.hsplit(X, self.edge_cols)])
-        return np.concatenate(ret, axis=1)
+
+        if len(ret) != 0:
+            return np.concatenate(ret, axis=1)
+        else:
+            return np.zeros((X.get(0).shape[0], 0))
 
     def _do_all(self, method, spec_args=None, spec_kwargs=None, *args, **kwargs):
         spec_args, spec_kwargs = self._default_args_kwargs(spec_args, spec_kwargs, len(self.transformers))
