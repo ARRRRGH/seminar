@@ -46,6 +46,7 @@ def run_jobs(jobs, joblib=True, n_jobs=4, chunks=1, chunk_callback=None, *args, 
 
     return list(el[0] for el in zip(*out))
 
+
 class BiDict(dict):
     def __init__(self, *args, **kwargs):
         super(BiDict, self).__init__(*args, **kwargs)

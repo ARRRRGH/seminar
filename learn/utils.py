@@ -4,7 +4,10 @@ import pandas as pd
 from functools import partial
 import copy
 from sklearn.metrics import adjusted_mutual_info_score, adjusted_rand_score, fowlkes_mallows_score, v_measure_score
+from sklearn.metrics import confusion_matrix
 import itertools as it
+from RSreader import io
+import os
 
 try:
     from utils import run_jobs
@@ -177,3 +180,179 @@ class GridSearch(object):
 
         return np.concatenate([np.array([[param_ident, run_ident] for i in range(len(ystest))]), scores], axis=1)
 
+
+def simulated_annealing(x0, energy, label_set, label_weights=None, epochs=1, T=20.0, eta=0.99995, max_change=3,
+                        subset=1, verbose=False, sample=None):
+    """Simulated Annealing for TSP
+
+    T(n) = T * eta**n
+
+    """
+    np.random.seed(7)
+
+    N = x0.shape[0]
+
+    energies = []
+    state_perm = x0
+    perm = state_perm.copy()
+
+    label_dict = {l: i for i, l in enumerate(label_set)}
+    label_mapper = np.vectorize(lambda ind: label_dict.get(ind))
+
+    energ = np.ones(len(label_set))
+
+    if label_weights is None:
+        label_weights = np.ones(len(label_set)) / len(label_set)
+
+    labels, new_energ = energy(perm)
+    label_inds = label_mapper(labels)
+
+    energ[label_mapper(labels)] = new_energ
+    energies.append((perm.copy(), energ.copy(), T))
+
+    samples = []
+
+    T_n = T
+    for e in range(epochs):
+        if verbose:
+            print('\r\r Epoch %d, T=%.9f: \n perm %s, \n energy %s' % (e, T_n, str(state_perm), str(energies[-1][1].mean())))
+
+        print({l: energ[i] for l, i in label_dict.items()})
+
+        for idx in np.random.permutation(N):
+
+            if max_change > 1:
+                n_inds = np.random.choice(range(1, max_change + 1), 1)
+                inds = np.r_[np.random.choice(np.setdiff1d(np.arange(N), np.array([idx])), n_inds - 1), idx]
+
+            else:
+                inds = [idx]
+
+            if len(inds) ==  1:
+                new_label = np.random.choice(np.setxor1d(label_set, perm[idx]), 1)[0]
+            else:
+                new_label = np.random.choice(label_set, 1)[0]
+
+            labels, new_energ = energy(perm, inds=inds, new_label=new_label, subset=subset)
+            label_inds = label_mapper(labels)
+
+            diff = np.sum((new_energ - energ[label_inds]) * label_weights[label_inds]) / np.sum(label_weights[label_inds])
+            p = min(1, np.exp(- (diff.max() / T_n)))
+            b = np.random.binomial(1, p, 1)
+
+            if b == 1:
+                state_perm[inds] = new_label
+                energ[label_inds] = new_energ
+            else:
+                pass
+
+            if sample is not None and e > epochs - sample:
+                samples.append(state_perm.copy())
+
+            perm = state_perm.copy()
+            energ = energ.copy()
+
+        T_n *= eta
+
+        energies.append((state_perm, energ, T_n))
+
+    return np.asarray(state_perm), energies, T_n, samples
+
+
+def contingency_distance(prev_perm, score, clustering, ground_truth, valid_pix=None, inds=None, new_label=None,
+                         subset=1, trn_inds=None):
+
+    assert not(valid_pix is not None and trn_inds is not None)
+    indices = trn_inds
+    if indices is None:
+        indices = valid_pix
+
+    if indices is None:
+        indices = slice(None, None)
+
+    if inds is None and new_label is None:
+        prev_perm = dict(zip(range(len(prev_perm)), prev_perm))
+        prev_perm[-1] = -1
+
+        mapper = np.vectorize(lambda ind: prev_perm.get(ind))
+        clf_perm = mapper(clustering[indices])
+
+        affected_labels = np.sort(np.unique(ground_truth[indices]))
+        return affected_labels, 1 - score(clf_perm, ground_truth[indices], average=None)
+
+    if not hasattr(inds, '__len__'):
+        inds = [inds]
+
+    affected_cluster_to = np.where(prev_perm == new_label)[0]
+    affected_cluster_fro = np.concatenate([np.where(prev_perm == prev_perm[i])[0] for i in inds])
+    affected_clusters = np.unique(np.r_[affected_cluster_to, affected_cluster_fro])
+
+    affected_labels = [prev_perm[i] for i in affected_clusters] + [new_label]
+    affected_labels_set = np.sort(np.unique(affected_labels))
+
+    perm = prev_perm.copy()
+    perm[inds] = new_label
+    perm = dict(zip(affected_clusters, perm[affected_clusters]))
+
+    mapper = np.vectorize(lambda ind: perm.get(ind, -1))
+
+    pred = clustering[indices]
+    gtr = ground_truth[indices]
+
+    # only calculate on a random subset
+    if subset != 1:
+        subset = np.random.choice(range(len(gtr)), int(subset * len(gtr)))
+
+        pred = pred[subset]
+        gtr = gtr[subset]
+
+    pred = mapper(pred)
+
+    scores = score(pred, gtr, labels=affected_labels_set) #labels=affected_labels_set)
+    invscore = 1 - scores
+
+    return affected_labels_set, invscore
+
+
+def train_predict_conf(pip, dset, model_arr, ground_truth, classif_out_path, samples, gt=None, is_aligned=False, train=True,
+                       load_classif=False, gt_nan=-1, pred_nan=-1, dtype=np.uint16, *args, **kwargs):
+
+    if type(samples) is int:
+        samples = dset.sample(min(samples, len(dset)))
+
+    if train:
+        # print('fit model ')
+        pip.fit(samples, gt)
+
+    if not load_classif:
+        # print('Classify dset ')
+        classif = pred_array(model=pip, inp=dset, model_arr=model_arr, no_val=-1, *args, **kwargs)[0]
+
+        # print('Write out classification to ' + classif_out_path)
+        classif = io.write_out(arr=classif.astype(dtype), default_meta=classif.attrs, dst_path=classif_out_path)
+    else:
+        classif, _ = io.read_raster(classif_out_path)
+
+    # print('Align classification and ground truth, write out to ' + align_path)
+    if not is_aligned:
+        # path arithmetic
+        base, name = os.path.split(classif_out_path)
+        name, ext = os.path.splitext(name)
+        align_path = os.path.join(base, name + '_aligned' + ext)
+
+        classif = io.align(ground_truth, classif, align_path)
+
+    return classif, validate(classif, ground_truth, pred_nan=pred_nan, gt_nan=gt_nan)
+
+
+def validate(pred_classif, gt_classif, pred_nan=-1, gt_nan=-1, add_to_gtr=10000):
+    """
+    pred_classif and gt_classif *must* be aligned
+    """
+    gt_valid = np.logical_not(gt_classif.data == gt_nan)
+    pred_valid = np.logical_not(pred_classif.data == pred_nan)
+    valids = np.where(np.logical_and(gt_valid, pred_valid))
+
+    # make sure the labels of gt_classif and pred_classif are different to get a meaningful confusion matrix
+    # that's done here by adding add_to_gtr
+    return valids, confusion_matrix(gt_classif.data[valids] + add_to_gtr, pred_classif.data[valids])
