@@ -342,15 +342,15 @@ def train_predict_conf(pip, dset, model_arr, ground_truth, classif_out_path, sam
 
         classif = io.align(ground_truth, classif, align_path)
 
-    return classif, validate(classif, ground_truth, pred_nan=pred_nan, gt_nan=gt_nan)
+    return classif, validate(classif.data, ground_truth.data, pred_nan=pred_nan, gt_nan=gt_nan)
 
 
 def validate(pred_classif, gt_classif, pred_nan=-1, gt_nan=-1, add_to_gtr=10000):
     """
     pred_classif and gt_classif *must* be aligned
     """
-    gt_valid = np.logical_not(gt_classif.data == gt_nan)
-    pred_valid = np.logical_not(pred_classif.data == pred_nan)
+    gt_valid = np.logical_not(gt_classif == gt_nan)
+    pred_valid = np.logical_not(pred_classif == pred_nan)
     valids = np.where(np.logical_and(gt_valid, pred_valid))
 
     # make sure the labels of gt_classif and pred_classif are different to get a meaningful confusion matrix
