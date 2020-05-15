@@ -15,7 +15,7 @@ def cluster_based_classif(samples, gt_samples, pip, n_clusters, score, nan_val=-
 
     _ = pip.fit(samples)
     clf = pip.predict(samples)
-    valids, conf = validate(clf, gt_samples)
+    valids, conf = validate(clf.flatten(), gt_samples.flatten())
 
     gtr_labels = np.unique(gt_samples.data[valids])
     cluster_labels = np.unique(clf.data[valids])

@@ -355,4 +355,4 @@ def validate(pred_classif, gt_classif, pred_nan=-1, gt_nan=-1, add_to_gtr=10000)
 
     # make sure the labels of gt_classif and pred_classif are different to get a meaningful confusion matrix
     # that's done here by adding add_to_gtr
-    return valids, confusion_matrix(gt_classif.data[valids] + add_to_gtr, pred_classif.data[valids])
+    return valids, confusion_matrix(gt_classif[valids] + add_to_gtr, pred_classif[valids])
