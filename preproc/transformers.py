@@ -309,3 +309,15 @@ class FuncTransformerCombo(_FixedCombo):
 
         for attr in self.transformers[0]._get_param_names():
             setattr(self, attr, getattr(self.transformers[0], attr))
+
+
+
+class FunctionPredictor(BaseEstimator, TransformerMixin):
+    def __init__(self, func):
+        self.func = func
+
+    def predict(self, *args, **kwargs):
+        return self.func(*args, **kwargs)
+
+    def fit(self, *args, **kwargs):
+        return self

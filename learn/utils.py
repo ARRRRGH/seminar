@@ -262,7 +262,7 @@ def simulated_annealing(x0, energy, label_set, label_weights=None, epochs=1, T=2
 def contingency_distance(prev_perm, score, clustering, ground_truth, valid_pix=None, inds=None, new_label=None,
                          subset=1, trn_inds=None):
 
-    assert not(valid_pix is not None and trn_inds is not None)
+    # assert not(valid_pix is not None and trn_inds is not None)
     indices = trn_inds
     if indices is None:
         indices = valid_pix
