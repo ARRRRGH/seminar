@@ -1,5 +1,5 @@
 %% Create a layerstack from SAR and optical images
-% M.Brechbühler, GEO441
+% M.BrechbÃ¼hler, GEO441
 
 % define your working directory
 %DataDir = 'S:/course/geo441/data/2020_Camargue/';
