@@ -1,5 +1,5 @@
 %% Create water abundance and minimal/maximal extent maps from optical indices:
-% M.Brechbühler, GEO441
+% M.BrechbÃ¼hler, GEO441
 
 % define your working directory
 DataDir = 'S:\course\geo441\stud\B_Camargue\indices\FR_L8_composite_filt_mNDWI_crop\';
