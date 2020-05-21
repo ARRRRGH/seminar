@@ -1,5 +1,5 @@
 %% Create optical Indices for Sentinel-2:
-% M.Brechbühler, GEO441
+% M.BrechbÃ¼hler, GEO441
 
 % Original Bands:   2   3   4   5   6   7   8   8a  11  12  (S2)
 % Input bands:      1   2   3   4   5   6   7   8   9   10  (Data)
@@ -76,8 +76,8 @@ end
 
 %% calculate and save EVI
 % EVI
-% 2.5 * ((Band 8 – Band 4) / (Band 8 + 6 * Band 4 – 7.5 * Band 2 + 1)) (S2)
-% 2.5 * ((Band 7 – Band 3) / (Band 7 + 6 * Band 3 – 7.5 * Band 1 + 1)) (Data)
+% 2.5 * ((Band 8 â€“ Band 4) / (Band 8 + 6 * Band 4 â€“ 7.5 * Band 2 + 1)) (S2)
+% 2.5 * ((Band 7 â€“ Band 3) / (Band 7 + 6 * Band 3 â€“ 7.5 * Band 1 + 1)) (Data)
 
 for fn = 1:length(files)
     fprintf(1, '(%s-%d) Now reading %s\n', 'EVI', fn, files(fn).name);
