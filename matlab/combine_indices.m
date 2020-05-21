@@ -1,5 +1,5 @@
 %% Combine L8 and S2 derived NDVI, NDWI and NDBI to get more coverage
-% M.Brechbühler, GEO441
+% M.BrechbÃ¼hler, GEO441
 
 % set reference system for GEOTIFF exports
 coordRefSysCode = 32631;
