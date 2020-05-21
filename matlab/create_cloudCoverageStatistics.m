@@ -1,5 +1,5 @@
 %% Create Cloudcover Statistics
-% M.Brechbühler, GEO441
+% M.BrechbÃ¼hler, GEO441
 
 % define sensor and image type
 sensor = 2; % S2 or L8
