@@ -1,5 +1,5 @@
 %% Create RGB video from scenes:
-% M.Brechbühler, GEO441
+% M.BrechbÃ¼hler, GEO441
 
 v = VideoWriter('L8_original_filt_150dpi_8fps', 'MPEG-4');
 v.FrameRate = 2; % Number of frames per second
