@@ -1,5 +1,5 @@
 %% Convert filename to date
-% M.Brechbühler, GEO441
+% M.BrechbÃ¼hler, GEO441
 
 function day = convert2Date(filename)
     % converts a filename (Str) of the type "FR_L8_30m_20150510_composite_filt" to a day of the year
