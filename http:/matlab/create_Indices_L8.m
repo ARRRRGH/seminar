@@ -1,5 +1,5 @@
 %% Create optical Indices for Landsat 8:
-% M.Brechbühler, GEO441
+% M.BrechbÃ¼hler, GEO441
 
 % Original Bands:   1   2   3   4   5   6   7  T1  T2   (L8)
 % Input bands:      1   2   3   4   5   6   7   8   9   (Data)
@@ -71,7 +71,7 @@ end
 
 %% calculate and save EVI
 % EVI
-% 2.5 * ((Band 5 – Band 4) / (Band 5 + 6 * Band 4 – 7.5 * Band 2 + 1)) (L8)
+% 2.5 * ((Band 5 â€“ Band 4) / (Band 5 + 6 * Band 4 â€“ 7.5 * Band 2 + 1)) (L8)
 
 for fn = 1:length(files)
     fprintf(1, '(%s-%d) Now reading %s\n', 'EVI', fn, files(fn).name);
