@@ -1,5 +1,5 @@
 % Waterbody Extraction from SAR imagery with Thresholding
-% M.Brechbühler, GEO441 - Remote Sensing Seminar, 29.04.2020
+% M.BrechbÃ¼hler, GEO441 - Remote Sensing Seminar, 29.04.2020
 
 % years: 2015 (1-53), 2016 (54-113), 2017 (114-174), 2018 (175-235), 
 % 2019 (236-244)
