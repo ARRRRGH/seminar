@@ -6,4 +6,4 @@
 
 **learn**: all definitions for CNN LSTM and CBC
 
-**matlab**: all scripts for index creation
+**matlab**: all scripts for index and water mask creation
