@@ -9,3 +9,6 @@
 **matlab**: all scripts for index and water mask creation
 
 **textures**: texture creation was performed in QGIS. 
+
+
+**Dependencies**: sklearn, scipy, pytorch, pytorch-lightning, holoviews, matplotlib, [ARRRRGH/RSreader](https://github.com/ARRRRGH/RSreader)
